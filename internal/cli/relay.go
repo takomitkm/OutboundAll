@@ -29,10 +29,12 @@ func relayPaths() (store, ak, helperBin string, err error) {
 	if err != nil {
 		bin = "dialhome"
 	}
-	return base, filepathStrings(base, "authorized_keys"), bin, nil
+	home, herr := os.UserHomeDir()
+	if herr != nil {
+		return "", "", "", herr
+	}
+	return base, filepath.Join(home, ".ssh", "authorized_keys"), bin, nil
 }
-
-func filepathStrings(base, name string) string { return base + string(os.PathSeparator) + name }
 
 func runRelayImpl(args []string) error {
 	if len(args) == 0 {
@@ -54,13 +56,12 @@ func runRelayImpl(args []string) error {
 		if err != nil {
 			return err
 		}
+		_ = os.MkdirAll(filepath.Join(base, "backups"), 0o700)
 		if _, err := os.Stat(akPath); errors.Is(err, os.ErrNotExist) {
-			if err := os.WriteFile(akPath, []byte("# dialhome-managed keys (included by the system authorized_keys)\n"), 0o600); err != nil {
-				return err
-			}
+			return fmt.Errorf("system authorized_keys missing at %s (create it first)", akPath)
 		}
 		fmt.Println("relay init ok: " + base)
-		fmt.Println("ensure the system authorized_keys ends with:  Include " + akPath)
+		fmt.Println("managing system authorized_keys: " + akPath)
 		return nil
 
 	case "credentials":
@@ -248,27 +249,39 @@ func runRelayHelperImpl(args []string) error {
 	fs := flag.NewFlagSet("relay-helper", flag.ContinueOnError)
 	port := fs.Int("port", 0, "ssh port baked into the caller's authorized_keys line")
 	cred := fs.String("credential", "", "credential id baked into the caller's authorized_keys line")
+	akPath := fs.String("ak", "", "system authorized_keys path (defaults to ~/.ssh/authorized_keys)")
 	base := platform.DataDir("relay")
 	fs.StringVar(&base, "base", base, "relay data dir")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *akPath == "" {
+		home, herr := os.UserHomeDir()
+		if herr != nil {
+			return herr
+		}
+		*akPath = filepath.Join(home, ".ssh", "authorized_keys")
+	}
 	original := os.Getenv("SSH_ORIGINAL_COMMAND")
 	store := relay.NewStore(base+string(os.PathSeparator)+"registry.json", base+string(os.PathSeparator)+"registry.lock")
 	h := &relay.Helper{
 		Store:      store,
-		AKPath:     base + string(os.PathSeparator) + "authorized_keys",
+		AKPath:     *akPath,
 		OpenSSHZip: base + string(os.PathSeparator) + "openssh/OpenSSH-Win64.zip",
 		Now:        time.Now,
 	}
+	verb := ""
+	if fs.NArg() > 0 {
+		verb = fs.Arg(0) // positional form: relay-helper enroll|tunnel ...
+	}
 	switch {
-	case *cred != "":
+	case *cred != "" || verb == "enroll":
 		out, code := h.EnrollCommand(*cred, original)
 		fmt.Print(out)
 		if code != 0 {
 			os.Exit(code)
 		}
-	case *port != 0:
+	case *port != 0 || verb == "tunnel":
 		out, code := h.TunnelCommand(*port, original)
 		if out != "" {
 			fmt.Print(out)
@@ -277,7 +290,7 @@ func runRelayHelperImpl(args []string) error {
 			os.Exit(code)
 		}
 	default:
-		return fmt.Errorf("%w: relay-helper needs --port or --credential", errs.ErrUsage)
+		return fmt.Errorf("%w: relay-helper needs enroll --credential <id> | tunnel --port <p>", errs.ErrUsage)
 	}
 	return nil
 }

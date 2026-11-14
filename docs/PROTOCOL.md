@@ -38,15 +38,21 @@ registry 公钥指纹 → 命中既有节点 → 返回原槽位（不新分配�
 
 ## 3. Relay authorized_keys 文件
 
-独立文件 `~/.dialhome/authorized_keys`（**非系统文件**），由系统 `authorized_keys` 末行
-`Include ~/.dialhome/authorized_keys` 引入（OpenSSH ≥7.3 支持 Include；Debian 13 / 系统 sshd 实测支持
-—— Phase 1 已确认系统 sshd 在跑，Include 行为在 Phase 4 集成测试中验证；不支持 Include 的老版本
-回退方案：helper 直接维护系统 AK，写入规程同 SECURITY_MODEL §3，迁移期支持两种形态）。
+**更正（2026-11-14 实测定案）**：authorized_keys 文件**不支持 Include 指令**（Include 属于
+sshd_config，不属于 authorized_keys）。因此 helper **直接维护系统的 `~/.ssh/authorized_keys`**：
 
-行格式（dialhome 管理的行，结构化解析，不做裸 grep）：
+- 结构化解析：dialhome 行（`dialhome-node-<name>` / `dialhome-credential-<id>` 标记）
+  与外部行（人工 key、旧体系 `magpie-node-*` / `magpie-tunnel-node-*` 行）**逐字节保留**
+- 原子写（tmp+rename）+ 时间戳备份（`~/.dialhome/backups/`）+ flock 串行化
+- 解析失败 → 中止并保留原文件（绝不整文件清空）
+
+行格式（dialhome 管理的行）：
 ```
-restrict,command="<helper> --port <P>",port-forwarding,permitlisten="127.0.0.1:<P>",permitlisten="127.0.0.1:<P2>",permitopen="127.0.0.1:1" <type> <b64> <comment=dialhome-node-<name>|dialhome-credential-<id>>
+restrict,command="<helper> tunnel --port <P>",port-forwarding,permitlisten="127.0.0.1:<P>",permitlisten="127.0.0.1:<P2>",permitopen="127.0.0.1:1" <type> <b64> dialhome-node-<name>
+restrict,command="<helper> enroll --credential <id>",no-port-forwarding,no-pty,no-user-rc <type> <b64> dialhome-credential-<id>
 ```
+凭证/端口标识烘焙进调用者自己的 AK 行（`--credential <id>` / `--port <P>`）——
+该行由 relay 自己写入，客户端无法冒认他人槽位。
 非 dialhome 行原样保留；解析器输出 `{kind, ports[], key_fp, comment, raw}`。
 
 ## 4. 端口分配器

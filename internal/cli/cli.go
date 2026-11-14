@@ -3,10 +3,15 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/takomitkm/dialhome/internal/crypto"
 	"github.com/takomitkm/dialhome/internal/errs"
+	"github.com/takomitkm/dialhome/internal/platform"
 )
 
 // Run executes argv (without the program name).
@@ -34,6 +39,8 @@ func Run(argv []string) error {
 		return runMigrate(rest)
 	case "doctor":
 		return runDoctor(rest)
+	case "keygen":
+		return runKeygen(rest)
 	case "version":
 		fmt.Println("dialhome " + version)
 		return nil
@@ -70,6 +77,35 @@ Docs: docs/ARCHITECTURE.md, docs/SECURITY_MODEL.md, docs/man-dialhome (legacy PS
 
 // version is set by the release build via -ldflags; keep a dev default.
 var version = "dev"
+
+// runKeygen writes a fresh ed25519 pair: private key -> --out (hardened), public
+// line -> stdout. Used by node install internally and by tests.
+func runKeygen(args []string) error {
+	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
+	out := fs.String("out", "", "private key output path (created 0600-equivalent)")
+	comment := fs.String("comment", "dialhome-node", "key comment")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *out == "" {
+		return fmt.Errorf("%w: keygen requires --out", errs.ErrUsage)
+	}
+	kp, err := crypto.Generate(*comment)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(*out), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(*out, []byte(kp.Private), 0o600); err != nil {
+		return err
+	}
+	if err := platform.HardenFile(*out); err != nil {
+		return err
+	}
+	fmt.Println(kp.Public.Line())
+	return nil
+}
 
 func runNode(args []string) error {
 	if len(args) == 0 {

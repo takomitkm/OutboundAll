@@ -128,15 +128,15 @@ func NodeLine(helperPath string, ports Ports, pub crypto.AuthorizedKey, name str
 // CredentialLine renders the enrollment-credential restricted line (no forwarding at all).
 func CredentialLine(helperPath string, credID string, pub crypto.AuthorizedKey) string {
 	return fmt.Sprintf("restrict,command=%q,no-port-forwarding,no-pty,no-user-rc %s",
-		helperCommandEnroll(helperPath), pub.Type+" "+b64Body(pub)+" dialhome-credential-"+credID)
+		helperCommandEnroll(helperPath, credID), pub.Type+" "+b64Body(pub)+" dialhome-credential-"+credID)
 }
 
 func helperCommand(helperPath string, port int) string {
-	return helperPath + " tunnel --port " + fmt.Sprint(port)
+	return helperPath + " relay-helper --port " + fmt.Sprint(port) + " tunnel"
 }
 
-func helperCommandEnroll(helperPath string) string {
-	return helperPath + " enroll"
+func helperCommandEnroll(helperPath, credID string) string {
+	return helperPath + " relay-helper --credential " + credID + " enroll"
 }
 
 func b64Body(pub crypto.AuthorizedKey) string {

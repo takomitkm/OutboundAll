@@ -18,11 +18,18 @@ func DataDir(role string) string {
 	}
 	switch runtime.GOOS {
 	case "windows":
+		home, herr := os.UserHomeDir()
+		if herr != nil {
+			home = os.Getenv("USERPROFILE")
+		}
+		if role == "relay" {
+			return filepath.Join(home, ".dialhome")
+		}
 		base := os.Getenv("LOCALAPPDATA")
 		if base == "" {
 			base = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
 		}
-		if role == "controller" || role == "relay" {
+		if role == "controller" {
 			base = os.Getenv("APPDATA")
 			if base == "" {
 				base = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Roaming")
@@ -32,11 +39,18 @@ func DataDir(role string) string {
 		return filepath.Join(base, "dialhome")
 	case "darwin":
 		home, _ := os.UserHomeDir()
+		if role == "relay" {
+			return filepath.Join(home, ".dialhome")
+		}
 		if role == "node" {
 			return filepath.Join(home, "Library", "Application Support", "dialhome")
 		}
 		return filepath.Join(home, ".config", "dialhome")
 	default: // linux and everything else unix-like: XDG
+		if role == "relay" {
+			home, _ := os.UserHomeDir()
+			return filepath.Join(home, ".dialhome")
+		}
 		if role == "node" {
 			base := os.Getenv("XDG_DATA_HOME")
 			if base == "" {
