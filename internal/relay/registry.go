@@ -63,11 +63,14 @@ type Credential struct {
 }
 
 type Registry struct {
-	ConfigVersion int                    `json:"config_version"`
-	PortPool      PortPool               `json:"port_pool"`
-	HelperPath    string                 `json:"helper_path"`
-	Nodes         map[string]*NodeRecord `json:"nodes"`
-	Credentials   map[string]*Credential `json:"credentials"`
+	ConfigVersion int      `json:"config_version"`
+	PortPool      PortPool `json:"port_pool"`
+	HelperPath    string   `json:"helper_path"`
+	// Advertise is the address nodes should dial for tunnel enrollment/keepalive
+	// (defaults to the relay public address; co-located deployments set 127.0.0.1).
+	Advertise   string                 `json:"advertise,omitempty"`
+	Nodes       map[string]*NodeRecord `json:"nodes"`
+	Credentials map[string]*Credential `json:"credentials"`
 }
 
 // Store wraps a registry file with its lock. All mutations go through WithLock.

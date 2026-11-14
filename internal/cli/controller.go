@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/takomitkm/dialhome/internal/controller"
+	"github.com/takomitkm/dialhome/internal/crypto"
 	"github.com/takomitkm/dialhome/internal/errs"
 	"github.com/takomitkm/dialhome/internal/platform"
 )
@@ -34,8 +35,39 @@ func runControllerImpl(args []string) error {
 		return err
 	}
 	sshExe := "ssh"
+	ctrlDir := platform.DataDir("controller")
 
 	switch args[0] {
+	case "init":
+		// generate the manager keypair: private stays HERE (controller), public is
+		// copied to the relay (manager.pub) so credentials bake it into nodes
+		keyPath := filepath.Join(ctrlDir, "keys", "manager.key")
+		if _, err := os.Stat(keyPath); err == nil {
+			fmt.Println("manager key already present: " + keyPath)
+		} else {
+			kp, kerr := crypto.Generate("dialhome-manager")
+			if kerr != nil {
+				return kerr
+			}
+			if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+				return err
+			}
+			if err := os.WriteFile(keyPath, []byte(kp.Private), 0o600); err != nil {
+				return err
+			}
+			if err := platform.HardenFile(keyPath); err != nil {
+				return err
+			}
+			pubPath := filepath.Join(ctrlDir, "keys", "manager.pub")
+			if err := os.WriteFile(pubPath, []byte(kp.Public.Line()+"\n"), 0o644); err != nil {
+				return err
+			}
+			fmt.Println("MANAGER-KEY  = " + keyPath)
+			fmt.Println("MANAGER-PUB  = " + pubPath)
+			fmt.Println("copy manager.pub to the relay as ~/.dialhome/manager.pub (scp)")
+		}
+		return nil
+
 	case "list":
 		names := reg.Names()
 		if len(names) == 0 {
@@ -96,10 +128,11 @@ func runControllerImpl(args []string) error {
 			return fmt.Errorf("%w: shell <machine>", errs.ErrUsage)
 		}
 		machine := args[1]
-		rargs, _, err := controller.Failover(reg, machine, sshExe, func(a controller.Anchor) []string {
+		rargs, trail, err := controller.Failover(reg, machine, sshExe, func(a controller.Anchor) []string {
 			return anchorArgs(a)
 		})
 		if err != nil {
+			printTrail(trail)
 			return failoverReport(machine, err)
 		}
 		shellArgs := []string{"-t"}
@@ -114,10 +147,11 @@ func runControllerImpl(args []string) error {
 			return fmt.Errorf("%w: exec <machine> <command...>", errs.ErrUsage)
 		}
 		machine := args[1]
-		rargs, _, err := controller.Failover(reg, machine, sshExe, func(a controller.Anchor) []string {
+		rargs, trail, err := controller.Failover(reg, machine, sshExe, func(a controller.Anchor) []string {
 			return anchorArgs(a)
 		})
 		if err != nil {
+			printTrail(trail)
 			return failoverReport(machine, err)
 		}
 		m := reg.Machines[machine]
@@ -169,15 +203,68 @@ func verdict(t controller.ProbeResult) string {
 
 // anchorArgs maps an anchor to the ssh argument vector addressing it.
 // ssh-alias anchors reference the user's own ~/.ssh/config (never migrated).
+// dialhome anchors ProxyJump through the relay and land on the node loopback port
+// with the controller manager key (the only key allowed a node shell).
 func anchorArgs(a controller.Anchor) []string {
 	if a.Alias != "" {
 		return []string{a.Alias}
 	}
 	if a.Node != "" && a.RelayAddr != "" {
-		host, port := splitHostPort(a.RelayAddr)
-		return []string{"-p", port, host}
+		jump := jumpTarget(a)
+		// co-located controller+relay: the controller IS on the relay, so the node's
+		// loopback port is directly reachable -- no jump hop, no relay credentials
+		// needed (evidence: 2026-11-15 E2E; jumping to 127.0.0.1:22 fails because
+		// the relay user has no self-referential key in its own authorized_keys).
+		if strings.HasPrefix(a.RelayAddr, "127.0.0.1") {
+			jump = ""
+		}
+		// -i applies to the FINAL host (the node); a jump hop would use the default
+		// identity/agent, so IdentitiesOnly must stay off (evidence: 2026-11-15 E2E).
+		// The node tunnel is loopback-only and manager-key authenticated, so a fresh
+		// per-install host key is accepted into a controller-owned known_hosts file
+		// (evidence: 2026-11-15 E2E -- node regenerates its host key each install).
+		args := []string{"-i", managerKeyPath(), "-o", "StrictHostKeyChecking=accept-new", "-o", "UserKnownHostsFile=" + controllerKnownHosts()}
+		if jump != "" {
+			args = append(args, "-J", jump)
+		}
+		if a.RemotePort > 0 {
+			args = append(args, "-p", fmt.Sprint(a.RemotePort))
+		}
+		user := a.RelayUser
+		if user == "" {
+			user = "user"
+		}
+		return append(args, user+"@127.0.0.1")
 	}
 	return nil
+}
+
+func jumpTarget(a controller.Anchor) string {
+	user := a.RelayUser
+	if user == "" {
+		user = "user"
+	}
+	host, port := splitHostPort(a.RelayAddr)
+	if port == "" {
+		port = "22"
+	}
+	return user + "@" + host + ":" + port
+}
+
+func managerKeyPath() string {
+	return filepath.Join(platform.DataDir("controller"), "keys", "manager.key")
+}
+
+// controllerKnownHosts is a controller-owned known_hosts file. Loopback node
+// tunnels regenerate their host key on each install; accepting new keys here (and
+// not poisoning the user's shared ~/.ssh/known_hosts) keeps the manager-key
+// authentication on a private loopback channel intact (evidence: 2026-11-15 E2E).
+func controllerKnownHosts() string {
+	dir := platform.DataDir("controller")
+	os.MkdirAll(dir, 0o700)
+	p := filepath.Join(dir, "known_hosts")
+	os.OpenFile(p, os.O_CREATE|os.O_APPEND, 0o600)
+	return p
 }
 
 func splitHostPort(addr string) (string, string) {
@@ -186,6 +273,14 @@ func splitHostPort(addr string) (string, string) {
 		return addr, "22"
 	}
 	return addr[:i], addr[i+1:]
+}
+
+// printTrail renders the ordered probe trail on failure (spec §4.2).
+func printTrail(trail []controller.ProbeResult) {
+	for i, t := range trail {
+		kind := anchorKind(t.Anchor)
+		fmt.Printf("  %d. [%s] %s -> %s\n", i+1, kind, anchorLabel(t.Anchor), verdict(t))
+	}
 }
 
 func failoverReport(machine string, err error) error {

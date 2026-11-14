@@ -21,7 +21,7 @@ import (
 
 // relayPaths resolves the on-disk locations for the relay role.
 func relayPaths() (store, ak, helperBin string, err error) {
-	base := platform.DataDir("relay")
+	base := relayDataDir()
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return "", "", "", err
 	}
@@ -49,9 +49,17 @@ func runRelayImpl(args []string) error {
 
 	switch args[0] {
 	case "init":
-		// registry.json default + AK include line (with backup) + helper path
+		fsInit := flag.NewFlagSet("relay init", flag.ContinueOnError)
+		advertise := fsInit.String("advertise", "", "address nodes dial for enrollment (default: baked constant)")
+		if err := fsInit.Parse(args[1:]); err != nil {
+			return err
+		}
+		// registry.json default + helper path + advertised address
 		err = store.WithLock(func(r *relay.Registry) error {
 			r.HelperPath = helperBin
+			if *advertise != "" {
+				r.Advertise = *advertise
+			}
 			return nil
 		})
 		if err != nil {
@@ -202,11 +210,16 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, ma
 		if err := relay.WriteWithBackup(akPath, relay.Render(entries)); err != nil {
 			return err
 		}
-		doc := map[string]string{
-			"credential_version":      "1",
+		doc := map[string]any{
+			"credential_version":      1,
 			"node_name":               name,
 			"private_key_openssh_b64": base64.StdEncoding.EncodeToString([]byte(kp.Private)),
 			"manager_pubkey":          managerPub,
+			"ports_ssh":               n.Ports.SSH,
+			"ports_app":               n.Ports.App,
+			"relay_address":           advertiseAddr(r),
+			"relay_port":              advertisePort(r),
+			"relay_user":              "user",
 			"expires_at":              exp,
 		}
 		docB, _ := json.MarshalIndent(doc, "", "  ")
@@ -272,7 +285,7 @@ func runRelayHelperImpl(args []string) error {
 	port := fs.Int("port", 0, "ssh port baked into the caller's authorized_keys line")
 	cred := fs.String("credential", "", "credential id baked into the caller's authorized_keys line")
 	akPath := fs.String("ak", "", "system authorized_keys path (defaults to ~/.ssh/authorized_keys)")
-	base := platform.DataDir("relay")
+	base := relayDataDir()
 	fs.StringVar(&base, "base", base, "relay data dir")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -341,6 +354,68 @@ func livePorts() []int {
 		}
 	}
 	return ports
+}
+
+// advertiseAddr returns the relay-advertised dial address (registry override or
+// the documented default public address).
+// advertiseAddr returns the HOST part only (port comes from advertisePort).
+func advertiseAddr(r *relay.Registry) string {
+	full := "10.101.54.192"
+	if r != nil && r.Advertise != "" {
+		full = r.Advertise
+	}
+	if i := strings.LastIndex(full, ":"); i >= 0 {
+		port := full[i+1:]
+		numeric := true
+		for _, c := range port {
+			if c < '0' || c > '9' {
+				numeric = false
+				break
+			}
+		}
+		if numeric {
+			return full[:i]
+		}
+	}
+	return full
+}
+
+// advertisePort derives the ssh port from the advertised address (default 18322
+// for the public address, 22 for a bare loopback co-located relay).
+func advertisePort(r *relay.Registry) int {
+	addr := advertiseAddr(r)
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		p := 0
+		for _, c := range addr[i+1:] {
+			if c < '0' || c > '9' {
+				p = 0
+				break
+			}
+			p = p*10 + int(c-'0')
+		}
+		if p > 0 {
+			return p
+		}
+	}
+	if addr == "127.0.0.1" {
+		return 22
+	}
+	return 18322
+}
+
+// relayDataDir is ALWAYS ~/.dialhome on the relay machine -- it must not honor
+// DIALHOME_DATA_DIR (that override exists for node/controller testing; the helper
+// runs under sshd whose env never matches the caller's shell, and a mismatch makes
+// credentials "unknown"). Explicit --base still wins for tests.
+func relayDataDir() string {
+	if custom := os.Getenv("DIALHOME_RELAY_DIR"); custom != "" {
+		return custom
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return platform.DataDir("relay")
+	}
+	return filepath.Join(home, ".dialhome")
 }
 
 func randHex(n int) string {

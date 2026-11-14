@@ -107,3 +107,45 @@ func TestFailoverNoReachableAnchor(t *testing.T) {
 		t.Fatalf("tcp failure must carry the real reason: %s", trail[0].Detail)
 	}
 }
+
+// TestBuildProbeArgsOrder locks the regression from 2026-11-15 E2E: connection
+// options and the "-o" flags must precede the destination, and the destination
+// must precede the remote command. Putting "-o ... echo" after "user@host" turned
+// the marker into a remote command and failed the probe with exit 255.
+func TestBuildProbeArgsOrder(t *testing.T) {
+	// dialhome anchor shape produced by cli.anchorArgs (co-located case):
+	//   ["-i", key, "-o", "StrictHostKeyChecking=accept-new", "-o", "UserKnownHostsFile=/x", "-p", "13441", "user@127.0.0.1"]
+	sshArgs := []string{"-i", "/k", "-o", "StrictHostKeyChecking=accept-new", "-o", "UserKnownHostsFile=/x", "-p", "13441", "user@127.0.0.1"}
+	args := buildProbeArgs("ssh", sshArgs, 8*1e9)
+
+	destIdx := indexOf(args, "user@127.0.0.1")
+	markerIdx := indexOf(args, "echo")
+	if destIdx < 0 {
+		t.Fatalf("destination missing: %v", args)
+	}
+	if markerIdx < 0 {
+		t.Fatalf("marker missing: %v", args)
+	}
+	// destination before marker == destination before remote command
+	if destIdx > markerIdx {
+		t.Fatalf("destination must precede remote command: %v", args)
+	}
+	// "-o" opts before destination
+	if idx := indexOf(args, "BatchMode=yes"); idx < 0 || idx > destIdx {
+		t.Fatalf("connection options must precede destination: %v", args)
+	}
+	// ssh-alias shape: bare alias is the destination, no -p
+	aliasArgs := buildProbeArgs("ssh", []string{"school-guest"}, 8*1e9)
+	if indexOf(aliasArgs, "school-guest") > indexOf(aliasArgs, "echo") {
+		t.Fatalf("alias must precede remote command: %v", aliasArgs)
+	}
+}
+
+func indexOf(s []string, v string) int {
+	for i, x := range s {
+		if x == v {
+			return i
+		}
+	}
+	return -1
+}

@@ -175,6 +175,32 @@ func nodeInstall(np nodePaths, args []string) error {
 		return err
 	}
 
+	// 9b) enroll: submit the tunnel PUBLIC key through the credential's forced
+	// command (PROTOCOL §1 step 2). The credential private key lives only in the
+	// credential file; it is deleted right after this one-shot use.
+	if cred.PrivateKeyOpenSSHB64 != "" {
+		credKey := filepath.Join(np.State, "cred-use.key")
+		raw, derr := base64.StdEncoding.DecodeString(cred.PrivateKeyOpenSSHB64)
+		if derr != nil {
+			return fmt.Errorf("credential key: %w", derr)
+		}
+		if err := os.WriteFile(credKey, raw, 0o600); err != nil {
+			return err
+		}
+		platform.HardenFile(credKey)
+		enrollCmd := exec.Command(sshExe, "-p", itoaPort(relayPort), "-i", credKey,
+			"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+			"-o", "ConnectTimeout=10",
+			relayUserOf(*relayStr, cred)+"@"+relayAddr,
+			"enroll "+tunnelPubLine)
+		if out, eerr := enrollCmd.CombinedOutput(); eerr != nil {
+			os.Remove(credKey)
+			return fmt.Errorf("enroll: %v: %s", eerr, strings.TrimSpace(string(out)))
+		}
+		os.Remove(credKey)
+		fmt.Println("ENROLL     = tunnel pubkey bound to " + nodeName)
+	}
+
 	// 4) authorized_keys for THIS node's sshd: the controller management key
 	nodeAK := filepath.Join(np.Keys, "authorized_keys")
 	if cred.ManagerPubkey != "" && !fileContains(nodeAK, cred.ManagerPubkey) {
@@ -263,7 +289,7 @@ func nodeRun(np nodePaths, args []string) error {
 			Name:      ch.Name,
 			Remote:    ch.Remote,
 			Local:     ch.Local,
-			KeyPath:   filepath.Join(np.Data, cfg.Node.SSHD.HostKey),
+			KeyPath:   filepath.Join(np.Data, "keys", "tunnel.key"),
 			RelayAddr: cfg.Node.Relay.Address + ":" + itoaPort(cfg.Node.Relay.Port),
 			RelayUser: cfg.Node.Relay.User,
 		})

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"time"
@@ -21,11 +22,14 @@ var ErrNoAnchor = errors.New("controller: no reachable anchor for node")
 // Anchor is one way to reach a node: an existing ssh config alias, or dialhome's
 // own via-relay path. The Controller never forces the user to migrate ~/.ssh/config.
 type Anchor struct {
-	Alias     string `json:"alias,omitempty"`      // ~/.ssh/config Host alias
-	Node      string `json:"node,omitempty"`       // dialhome node name (kind=dialhome)
-	RelayAddr string `json:"via_relay,omitempty"`  // host:port (kind=dialhome)
-	LocalPort int    `json:"local_port,omitempty"` // optional pre-built -L anchor
-	Note      string `json:"note,omitempty"`
+	Alias      string `json:"alias,omitempty"`       // ~/.ssh/config Host alias
+	Node       string `json:"node,omitempty"`        // dialhome node name (kind=dialhome)
+	RelayAddr  string `json:"via_relay,omitempty"`   // host:port (kind=dialhome)
+	RelayPort  int    `json:"relay_port,omitempty"`  // relay ssh port (kind=dialhome)
+	RelayUser  string `json:"relay_user,omitempty"`  // relay ssh user (kind=dialhome)
+	RemotePort int    `json:"remote_port,omitempty"` // node sshd port on the relay loopback (kind=dialhome)
+	LocalPort  int    `json:"local_port,omitempty"`  // optional pre-built -L anchor
+	Note       string `json:"note,omitempty"`
 }
 
 // Machine is one controlled node from the Controller's perspective.
@@ -127,13 +131,17 @@ func ProbeAnchorTCP(port int, timeout time.Duration) (bool, string) {
 }
 
 // ProbeAnchorSSH runs a cheap ssh health command through the anchor.
-// sshArgs: the argument vector addressing THIS anchor (never shell-interpolated).
+// sshArgs: connection args produced by anchorArgs -- connection options (incl. an
+// optional "-p" pair) followed by the destination (user@host or a bare ssh-alias).
+// The destination MUST stay before the remote command; the "-o" connection options
+// are inserted before it (evidence: 2026-11-15 E2E -- placing them after the
+// destination turned the marker into a remote command and failed with exit 255).
 func ProbeAnchorSSH(sshBinary string, sshArgs []string, timeout time.Duration) (bool, string) {
-	args := append(append([]string{}, sshArgs...),
-		"-o", "BatchMode=yes",
-		"-o", fmt.Sprintf("ConnectTimeout=%d", int(timeout.Seconds())),
-		"echo dialhome-probe-ok")
-	cmd := execCommand(sshBinary, args...)
+	if len(sshArgs) == 0 {
+		return false, "no ssh args"
+	}
+	args := buildProbeArgs(sshBinary, sshArgs, timeout)
+	cmd := execCommand(args[0], args[1:]...)
 	out, err := cmd.Output()
 	if err != nil {
 		return false, firstLine(errString(err, out))
@@ -142,6 +150,26 @@ func ProbeAnchorSSH(sshBinary string, sshArgs []string, timeout time.Duration) (
 		return false, "probe command produced no marker"
 	}
 	return true, "ssh ok"
+}
+
+// buildProbeArgs constructs the ssh argument vector for a connectivity probe.
+// sshArgs is connection options (incl. an optional "-p" pair) followed by the
+// destination (user@host or a bare ssh-alias); the destination MUST stay before
+// the remote command -- the "-o" connection options are inserted before it
+// (evidence: 2026-11-15 E2E -- putting them after the destination turned the
+// marker into a remote command and failed with exit 255). Exported for tests.
+func buildProbeArgs(sshBinary string, sshArgs []string, timeout time.Duration) []string {
+	if len(sshArgs) == 0 {
+		return []string{sshBinary}
+	}
+	dest := sshArgs[len(sshArgs)-1]
+	opts := append([]string{}, sshArgs[:len(sshArgs)-1]...)
+	args := append([]string{sshBinary}, opts...)
+	args = append(args,
+		"-o", "BatchMode=yes",
+		"-o", fmt.Sprintf("ConnectTimeout=%d", int(timeout.Seconds())),
+		dest, "echo", "dialhome-probe-ok")
+	return args
 }
 
 // Failover walks a machine's anchors in order; returns the winning sshArgs plus
@@ -182,9 +210,37 @@ func firstLine(s string) string {
 
 func errString(err error, out []byte) string {
 	if len(out) > 0 {
-		return string(out)
+		return firstNonEmptyLine(string(out))
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		return firstNonEmptyLine(string(exitErr.Stderr))
 	}
 	return err.Error()
+}
+
+func firstNonEmptyLine(s string) string {
+	for _, l := range splitLines(s) {
+		t := trim(l)
+		if t == "" || isBanner(t) {
+			continue
+		}
+		return t
+	}
+	return ""
+}
+
+// isBanner skips pure-separator lines ("@@@@@") that ssh prints around warnings.
+func isBanner(s string) bool {
+	if len(s) < 5 {
+		return false
+	}
+	for _, r := range s {
+		if r != '@' {
+			return false
+		}
+	}
+	return true
 }
 
 func containsLine(s, marker string) bool {
