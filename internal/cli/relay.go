@@ -44,6 +44,7 @@ func runRelayImpl(args []string) error {
 	if err != nil {
 		return err
 	}
+	_ = base
 	store := relay.NewStore(base+string(os.PathSeparator)+"registry.json", base+string(os.PathSeparator)+"registry.lock")
 
 	switch args[0] {
@@ -66,11 +67,16 @@ func runRelayImpl(args []string) error {
 
 	case "credentials":
 		if len(args) < 3 {
-			return fmt.Errorf("%w: credentials issue <name> | credentials revoke <id>", errs.ErrUsage)
+			return fmt.Errorf("%w: credentials issue <name> [--manager-pub FILE] | credentials revoke <id>", errs.ErrUsage)
 		}
 		switch args[1] {
 		case "issue":
-			return relayCredentialIssue(store, akPath, helperBin, args[2])
+			fs := flag.NewFlagSet("credentials issue", flag.ContinueOnError)
+			managerPub := fs.String("manager-pub", "", "path to the controller manager public key line")
+			if err := fs.Parse(args[3:]); err != nil {
+				return err
+			}
+			return relayCredentialIssue(store, akPath, helperBin, args[2], *managerPub)
 		case "revoke":
 			return relayCredentialRevoke(store, akPath, args[2])
 		default:
@@ -79,7 +85,7 @@ func runRelayImpl(args []string) error {
 
 	case "enroll":
 		// `relay enroll <name>` issues a credential for <name> (spec §5.2 uses this form too)
-		return relayCredentialIssue(store, akPath, helperBin, args[1])
+		return relayCredentialIssue(store, akPath, helperBin, args[1], "")
 
 	case "list":
 		r, err := store.Load()
@@ -112,6 +118,16 @@ func runRelayImpl(args []string) error {
 		fmt.Println(string(raw))
 		return nil
 
+	case "migrate-legacy":
+		// import legacy magpie-node-* / magpie-tunnel-node-* AK lines + old
+		// machines.json into the new registry, rewriting ONLY the forced command
+		// (same key, same ports -- running tunnels are never disturbed)
+		oldAK := ""
+		if len(args) > 1 {
+			oldAK = args[1]
+		}
+		return relayMigrateLegacy(store, akPath, helperBin, base, oldAK)
+
 	case "ports":
 		r, err := store.Load()
 		if err != nil {
@@ -136,7 +152,7 @@ func runRelayImpl(args []string) error {
 	}
 }
 
-func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string) error {
+func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, managerPubPath string) error {
 	kp, err := crypto.Generate("dialhome-credential")
 	if err != nil {
 		return err
@@ -144,7 +160,13 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string) er
 	credID := "cred-" + randHex(6)
 	exp := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
 	managerPub := ""
-	if raw, err := os.ReadFile(filepath.Join(platform.DataDir("relay"), "manager.pub")); err == nil {
+	if managerPubPath != "" {
+		raw, err := os.ReadFile(managerPubPath)
+		if err != nil {
+			return fmt.Errorf("manager-pub: %w", err)
+		}
+		managerPub = strings.TrimSpace(string(raw))
+	} else if raw, err := os.ReadFile(filepath.Join(platform.DataDir("relay"), "manager.pub")); err == nil {
 		managerPub = strings.TrimSpace(string(raw))
 	}
 	var credB64 string

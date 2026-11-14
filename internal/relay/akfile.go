@@ -93,7 +93,10 @@ func Parse(content string) []Entry {
 	return out
 }
 
-// permitListens extracts the numeric ports from permitlisten="127.0.0.1:P" options.
+// PermitListens extracts the numeric ports from permitlisten="127.0.0.1:P" options
+// (exported for the legacy migration path).
+func PermitListens(line string) []int { return permitListens(line) }
+
 func permitListens(line string) []int {
 	var out []int
 	for _, m := range regexp.MustCompile(`permitlisten="127\.0\.0\.1:(\d+)"`).FindAllStringSubmatch(line, -1) {
@@ -123,6 +126,29 @@ func NodeLine(helperPath string, ports Ports, pub crypto.AuthorizedKey, name str
 		"restrict,command=%q,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
 		helperCommand(helperPath, ports.SSH), ports.SSH, ports.App)
 	return opts + " " + pub.Line()[:strings.LastIndex(pub.Line(), " ")+1] + "dialhome-node-" + name
+}
+
+// PublicKeyLine is a parsed public key body (type + base64 body + comment).
+type PublicKeyLine struct {
+	Type    string
+	Body    string
+	Comment string
+}
+
+// LineFromParts renders an authorized_keys key part from pre-parsed fields.
+func LineFromParts(p PublicKeyLine) string {
+	if p.Comment == "" {
+		return p.Type + " " + p.Body
+	}
+	return p.Type + " " + p.Body + " " + p.Comment
+}
+
+// NodeLineRaw is NodeLine for keys that arrive pre-parsed (migration path).
+func NodeLineRaw(helperPath string, ports Ports, pub PublicKeyLine, name string) string {
+	opts := fmt.Sprintf(
+		"restrict,command=%q,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
+		helperCommand(helperPath, ports.SSH), ports.SSH, ports.App)
+	return opts + " " + LineFromParts(pub) + " dialhome-node-" + name
 }
 
 // CredentialLine renders the enrollment-credential restricted line (no forwarding at all).
