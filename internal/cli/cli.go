@@ -24,7 +24,7 @@ func Run(argv []string) error {
 	case "-h", "--help", "help":
 		return usage()
 	case "node":
-		return runNode(rest)
+		return runNodeImpl(rest)
 	case "controller":
 		return runController(rest)
 	case "relay":
@@ -105,20 +105,6 @@ func runKeygen(args []string) error {
 	}
 	fmt.Println(kp.Public.Line())
 	return nil
-}
-
-func runNode(args []string) error {
-	if len(args) == 0 {
-		return usage()
-	}
-	switch args[0] {
-	case "install":
-		return fmt.Errorf("%w: node install lands in Phase 5", errs.ErrNotImplemented)
-	case "run", "status", "stop", "uninstall", "logs", "enroll":
-		return fmt.Errorf("%w: node %s lands in Phase 5", errs.ErrNotImplemented, args[0])
-	default:
-		return fmt.Errorf("%w: unknown node subcommand %q", errs.ErrUsage, args[0])
-	}
 }
 
 func runController(args []string) error {
