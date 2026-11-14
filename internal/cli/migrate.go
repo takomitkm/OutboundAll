@@ -55,6 +55,7 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 	helper := helperBin
 
 	var imported []string
+	needsRewrite := false // set when a LEGACY line's forced command is rewritten
 	err = store.WithLock(func(r *relay.Registry) error {
 		entries := relay.Parse(content)
 		out := make([]relay.Entry, 0, len(entries))
@@ -123,6 +124,9 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 			}
 			pub := publicKeyBody(keep)
 			newLine := relay.NodeLineRaw(helper, ports, pub, name)
+			if newLine != keep {
+				needsRewrite = true
+			}
 			// registry: same identity, state active, hardware imported when present
 			rec := r.Nodes[name]
 			if rec == nil {
@@ -137,8 +141,15 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 			imported = append(imported, name+" -> ports("+fmt.Sprint(ports.App)+","+fmt.Sprint(ports.SSH)+")")
 			out = append(out, relay.Entry{Raw: newLine, Kind: "node", Name: name})
 		}
-		// atomic write with backup (same procedure as every AK mutation)
-		return relay.WriteWithBackup(akPath, relay.Render(out))
+		// Idempotency: when every line was already migrated (pure RESTORED), do NOT
+		// rewrite the file at all. Render() normalises trailing newlines, so an
+		// unconditional write appended a blank line on every run (evidence:
+		// 2026-11-15 -- AK sha changed after a no-op migrate). Only a real forced-
+		// command rewrite may touch authorized_keys.
+		if needsRewrite {
+			return relay.WriteWithBackup(akPath, relay.Render(out))
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -146,7 +157,11 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 	for _, l := range imported {
 		fmt.Println("MIGRATED " + l)
 	}
-	fmt.Printf("legacy import done (%d nodes); AK backup beside %s\n", len(imported), akPath)
+	if needsRewrite {
+		fmt.Printf("legacy import done (%d nodes); AK backup written beside %s\n", len(imported), akPath)
+	} else {
+		fmt.Printf("legacy import done (%d nodes, all already migrated); authorized_keys left byte-for-byte unchanged\n", len(imported))
+	}
 	return nil
 }
 

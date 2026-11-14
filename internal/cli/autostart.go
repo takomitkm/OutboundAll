@@ -58,6 +58,95 @@ func winRunKeyDelete(name string) error {
 		"/v", name, "/f")
 }
 
+// winRunKeyGet reads the current HKCU Run value for autostart status. A missing
+// value is NOT an error: it means "absent".
+func winRunKeyGet(name string) (bool, string, error) {
+	cmd := exec.Command("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", name)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, "", nil
+	}
+	s := string(out)
+	i := strings.LastIndex(s, "REG_SZ")
+	if i < 0 {
+		return false, "", nil
+	}
+	return true, strings.TrimSpace(s[i+len("REG_SZ"):]), nil
+}
+
+// --- optional system-scope service (spec §6.2) ---------------------------
+// Never installed by default. On Linux it writes a system unit (needs sudo);
+// on Windows/macOS we refuse with a clear message rather than silently trying
+// to elevate (the whole design is admin-less by default).
+
+const systemUnitPath = "/etc/systemd/system/dialhome-node.service"
+
+func systemServiceInstall() error {
+	exe, err := selfExe()
+	if err != nil {
+		return err
+	}
+	switch runtime.GOOS {
+	case "linux":
+		unit := `[Unit]
+Description=dialhome node supervisor (system scope, optional)
+After=network-online.target
+
+[Service]
+Type=simple
+User=` + currentUser() + `
+ExecStart=` + exe + ` node run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+`
+		// writing to /etc requires elevation; report that explicitly
+		if err := os.WriteFile(systemUnitPath, []byte(unit), 0o644); err != nil {
+			return fmt.Errorf("system service install needs root: %w", err)
+		}
+		if err := execSilent("systemctl", "daemon-reload"); err != nil {
+			return err
+		}
+		if err := execSilent("systemctl", "enable", "dialhome-node.service"); err != nil {
+			return err
+		}
+		fmt.Println("system service enabled (OPTIONAL; user-level autostart is the default)")
+		return nil
+	default:
+		return fmt.Errorf("system-scope service is a Linux systemd option only; on %s use 'dialhome autostart' (user scope, no admin)", runtime.GOOS)
+	}
+}
+
+func systemServiceUninstall() error {
+	switch runtime.GOOS {
+	case "linux":
+		_ = execSilent("systemctl", "disable", "dialhome-node.service")
+		if err := os.Remove(systemUnitPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("system service uninstall needs root: %w", err)
+		}
+		_ = execSilent("systemctl", "daemon-reload")
+		fmt.Println("system service removed")
+		return nil
+	default:
+		return fmt.Errorf("no system service on %s (nothing to remove)", runtime.GOOS)
+	}
+}
+
+func systemServiceStatus() error {
+	if runtime.GOOS != "linux" {
+		fmt.Println("system service = not applicable on " + runtime.GOOS + " (user autostart is the default)")
+		return nil
+	}
+	if _, err := os.Stat(systemUnitPath); err != nil {
+		fmt.Println("system service = absent (optional; not installed)")
+		return nil
+	}
+	fmt.Println("system service = installed at " + systemUnitPath)
+	return nil
+}
+
 // --- darwin --------------------------------------------------------------
 
 func launchAgentsDir() string {
