@@ -152,6 +152,14 @@ func runRelayImpl(args []string) error {
 		}
 		return relayRevoke(store, akPath, args[1])
 
+	case "purge":
+		// permanently delete a REVOKED node's tombstone. Active nodes are refused
+		// so a typo can never free a live production node's registration.
+		if len(args) < 2 {
+			return fmt.Errorf("%w: purge <name>", errs.ErrUsage)
+		}
+		return relayPurge(store, args[1])
+
 	case "reconcile", "verify":
 		return fmt.Errorf("%w: relay %s lands in Phase 6/9 (needs node channel)", errs.ErrNotImplemented, args[0])
 
@@ -275,6 +283,31 @@ func relayRevoke(store *relay.Store, akPath, name string) error {
 			return err
 		}
 		fmt.Printf("revoked %s (ports %d/%d freed in registry; listeners disappear after sshd re-key or timeout)\n",
+			name, n.Ports.App, n.Ports.SSH)
+		return nil
+	})
+}
+
+// relayPurge removes a revoked node's registry tombstone. It refuses active/pending
+// nodes deliberately -- purging a live node would silently free its port pair for
+// another enrollment. Does not touch authorized_keys (revoke already did that).
+func relayPurge(store *relay.Store, name string) error {
+	return store.WithLock(func(r *relay.Registry) error {
+		n, ok := r.Nodes[name]
+		if !ok {
+			return fmt.Errorf("node %s not found", name)
+		}
+		if n.State != "revoked" {
+			return fmt.Errorf("refusing to purge node %s in state %q (revoke it first)", name, n.State)
+		}
+		delete(r.Nodes, name)
+		// also drop any credentials bound to this node
+		for id, c := range r.Credentials {
+			if c.Node == name {
+				delete(r.Credentials, id)
+			}
+		}
+		fmt.Printf("purged %s (tombstone + credentials removed; ports %d/%d free for reuse)\n",
 			name, n.Ports.App, n.Ports.SSH)
 		return nil
 	})

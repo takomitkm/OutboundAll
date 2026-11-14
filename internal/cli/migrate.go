@@ -60,6 +60,41 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 		out := make([]relay.Entry, 0, len(entries))
 		for _, e := range entries {
 			keep := e.Raw
+			// Idempotent re-import: an ALREADY-migrated line (dialhome-node-* marker)
+			// is left byte-for-byte intact; only its registry record is rebuilt. This
+			// makes migrate-legacy safe to run twice, and lets operators recover a
+			// registry that was lost while the AK lines themselves survived
+			// (evidence: 2026-11-15 -- a test wiped registry.json but AK kept both
+			// production node lines; one migrate-legacy restored both records).
+			if e.Kind == "node" && e.Name != "" {
+				pl := e.Ports
+				if len(pl) < 2 {
+					pl = relay.PermitListens(keep)
+				}
+				ports := relay.Ports{}
+				if len(pl) >= 2 {
+					// NodeLine renders permitlisten="<SSH>",permitlisten="<APP>"
+					ports.SSH, ports.App = pl[0], pl[1]
+				} else if len(pl) == 1 {
+					ports.SSH = pl[0]
+				}
+				rec := r.Nodes[e.Name]
+				if rec == nil {
+					rec = &relay.NodeRecord{Ports: ports, RegisteredAt: "migrated"}
+					r.Nodes[e.Name] = rec
+				}
+				rec.Ports = ports
+				rec.State = "active"
+				if e.KeyFP != "" {
+					rec.TunnelKeyFP = e.KeyFP
+				}
+				if h, ok := legacyHW[e.Name]; ok {
+					rec.Hardware = h
+				}
+				imported = append(imported, "RESTORED "+e.Name+" -> ports("+fmt.Sprint(ports.App)+","+fmt.Sprint(ports.SSH)+")")
+				out = append(out, relay.Entry{Raw: keep, Kind: "node", Name: e.Name})
+				continue
+			}
 			name := ""
 			var ports relay.Ports
 			isLegacy := false
@@ -80,10 +115,11 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 				out = append(out, relay.Entry{Raw: keep, Kind: "other"})
 				continue
 			}
-			ports = relay.Ports{App: pl[len(pl)-2:][0]}
+			// LEGACY lines list permitlisten="<APP>",permitlisten="<SSH>" (reverse
+			// of the new NodeLine template) -- keep the original PS-era convention.
+			ports = relay.Ports{App: pl[0]}
 			if len(pl) >= 2 {
-				ports.SSH = pl[len(pl)-1]
-				ports.App = pl[len(pl)-2]
+				ports.SSH = pl[1]
 			}
 			pub := publicKeyBody(keep)
 			newLine := relay.NodeLineRaw(helper, ports, pub, name)
