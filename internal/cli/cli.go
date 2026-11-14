@@ -26,7 +26,7 @@ func Run(argv []string) error {
 	case "node":
 		return runNodeImpl(rest)
 	case "controller":
-		return runController(rest)
+		return runControllerImpl(rest)
 	case "relay":
 		return runRelayImpl(rest)
 	case "relay-helper":
@@ -105,18 +105,6 @@ func runKeygen(args []string) error {
 	}
 	fmt.Println(kp.Public.Line())
 	return nil
-}
-
-func runController(args []string) error {
-	if len(args) == 0 {
-		return usage()
-	}
-	switch args[0] {
-	case "list", "status", "shell", "exec", "anchors":
-		return fmt.Errorf("%w: controller %s lands in Phase 6", errs.ErrNotImplemented, args[0])
-	default:
-		return fmt.Errorf("%w: unknown controller subcommand %q", errs.ErrUsage, args[0])
-	}
 }
 
 func runAutostart(args []string) error {

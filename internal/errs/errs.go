@@ -9,6 +9,8 @@ var (
 	ErrUsage = errors.New("usage error")
 	// ErrNotImplemented marks scaffolding that a later phase fills in.
 	ErrNotImplemented = errors.New("not implemented")
+	// ErrGeneric is the catch-all domain failure (exit 1).
+	ErrGeneric = errors.New("failure")
 )
 
 // ExitCode maps an error to a process exit code.
