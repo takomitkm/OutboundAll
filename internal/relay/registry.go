@@ -67,10 +67,14 @@ type Registry struct {
 	PortPool      PortPool `json:"port_pool"`
 	HelperPath    string   `json:"helper_path"`
 	// Advertise is the address nodes should dial for tunnel enrollment/keepalive
-	// (defaults to the relay public address; co-located deployments set 127.0.0.1).
-	Advertise   string                 `json:"advertise,omitempty"`
-	Nodes       map[string]*NodeRecord `json:"nodes"`
-	Credentials map[string]*Credential `json:"credentials"`
+	// (defaults to the documented site address; co-located deployments set 127.0.0.1).
+	// AdvertiseUser is the SSH account on the relay that nodes dial. Both are
+	// configurable via `relay init --advertise/--relay-user` so a generic
+	// deployment does not depend on a specific hostname or account name.
+	Advertise     string                 `json:"advertise,omitempty"`
+	AdvertiseUser string                 `json:"advertise_user,omitempty"`
+	Nodes         map[string]*NodeRecord `json:"nodes"`
+	Credentials   map[string]*Credential `json:"credentials"`
 }
 
 // Store wraps a registry file with its lock. All mutations go through WithLock.
@@ -196,15 +200,58 @@ func AllocatePair(r *Registry, taken, live []int) (Ports, error) {
 	return Ports{}, ErrPortExhausted
 }
 
-// livePortsExec is the default liveFn for real relays: parse `ss -ltn`.
+// LivePortsFromSS extracts EVERY local listening port from `ss -ltn`, not just
+// 127.0.0.1 listeners. A wildcard bind (0.0.0.0:13440, [::]:13440, *:13440)
+// occupies the port just as surely as a loopback bind; ignoring it let
+// AllocatePair hand out a port whose -R would then fail (review finding P2).
+//
+// ss -ltn local-address column examples:
+//
+//	127.0.0.1:13441   0.0.0.0:22   [::]:22   [::1]:13401   *:13440   :::13440
+//
+// The port is the numeric suffix after the LAST colon. State/Recv-Q/Send-Q
+// columns and the peer address are skipped by requiring a numeric suffix.
 func LivePortsFromSS(output string) []string {
 	var out []string
+	seen := map[int]bool{}
 	for _, line := range strings.Split(output, "\n") {
 		for _, field := range strings.Fields(line) {
-			if strings.HasPrefix(field, "127.0.0.1:") {
-				out = append(out, field)
+			p, ok := portFromLocalAddress(field)
+			if !ok || seen[p] {
+				continue
 			}
+			seen[p] = true
+			out = append(out, fmt.Sprint(p))
 		}
 	}
 	return out
+}
+
+// portFromLocalAddress parses the numeric port of an ss local-address token.
+// It accepts any host form (IPv4, bracketed IPv6, wildcard) and rejects numeric
+// columns like Recv-Q/Send-Q that happen to be followed by a colon elsewhere.
+func portFromLocalAddress(field string) (int, bool) {
+	i := strings.LastIndex(field, ":")
+	if i < 0 || i == len(field)-1 {
+		return 0, false
+	}
+	// host part must be non-empty and must not itself be a bare number column
+	host := field[:i]
+	if host == "" {
+		return 0, false
+	}
+	suffix := field[i+1:]
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	p := 0
+	for _, r := range suffix {
+		p = p*10 + int(r-'0')
+	}
+	if p <= 0 || p > 65535 {
+		return 0, false
+	}
+	return p, true
 }

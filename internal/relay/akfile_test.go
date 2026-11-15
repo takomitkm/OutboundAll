@@ -126,3 +126,78 @@ func TestNodeLineSecurityBoundary(t *testing.T) {
 		}
 	}
 }
+
+// TestShellQuote locks POSIX shell escaping for the helper executable path.
+// Without it a path like "/home/user/my tools/dialhome" is split into two words
+// by the login shell running the forced command (review finding P2).
+func TestShellQuote(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"/usr/bin/dialhome", "'/usr/bin/dialhome'"},
+		{"/home/user/my tools/dialhome", "'/home/user/my tools/dialhome'"},
+		{"/opt/it's/dialhome", `'/opt/it'\''s/dialhome'`},
+		{"/x/$(id)/dialhome", "'/x/$(id)/dialhome'"},
+		{`/x/back\slash/dialhome`, `'/x/back\slash/dialhome'`},
+		{"", "''"},
+	}
+	for _, c := range cases {
+		if got := ShellQuote(c.in); got != c.want {
+			t.Fatalf("ShellQuote(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestForcedCommandQuoting verifies BOTH escaping layers: the shell word must be
+// single-quoted, and the whole command must be a valid authorized_keys option
+// value (double quotes with \" and \\ escapes), with no raw CR/LF/NUL.
+func TestForcedCommandQuoting(t *testing.T) {
+	pub, _ := crypto.Generate("q")
+	for _, path := range []string{
+		"/home/user/my tools/dialhome",
+		`/opt/it's "quoted" \& weird/dialhome`,
+		"/x/$(id)`whoami`;rm/dialhome",
+	} {
+		line := NodeLine(path, Ports{App: 13440, SSH: 13441}, pub.Public, "hp66")
+		// the AK option value must be double-quoted and close before ,port-forwarding
+		if !strings.Contains(line, `command="`) || !strings.Contains(line, `",port-forwarding`) {
+			t.Fatalf("AK option not properly quoted for path %q: %s", path, line)
+		}
+		// two independent escaping layers: shell-quote the word, THEN quote the
+		// whole command for authorized_keys. Compare the exact option value.
+		wantCmd := AKOptionValue(ShellQuote(path) + " relay-helper --port 13441 tunnel")
+		if !strings.Contains(line, "command="+wantCmd+",port-forwarding") {
+			t.Fatalf("forced command not double-escaped for path %q:\n got: %s\nwant: command=%s,port-forwarding", path, line, wantCmd)
+		}
+		if !strings.Contains(wantCmd, `\\`) && strings.Contains(path, `\`) {
+			t.Fatalf("backslash not escaped for path %q: %s", path, wantCmd)
+		}
+		if !strings.Contains(wantCmd, `\"`) && strings.Contains(path, `"`) {
+			t.Fatalf("double quote not escaped for path %q: %s", path, wantCmd)
+		}
+		// the line must still parse as a node line (Parse scans fields for key type)
+		entries := Parse(line + "\n")
+		found := false
+		for _, e := range entries {
+			if e.Kind == "node" && e.Name == "hp66" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("quoted line failed to parse for path %q: %+v", path, entries)
+		}
+	}
+	credPath := `/opt/it's "q"/dialhome`
+	cred := CredentialLine(credPath, "cred-1", pub.Public)
+	wantCred := AKOptionValue(ShellQuote(credPath) + " relay-helper --credential cred-1 enroll")
+	if !strings.Contains(cred, "command="+wantCred+",no-port-forwarding") {
+		t.Fatalf("credential line quoting wrong:\n got: %s\nwant: command=%s,no-port-forwarding", cred, wantCred)
+	}
+}
+
+func TestAKOptionValueRejectsControlChars(t *testing.T) {
+	if got := AKOptionValue("a\nb"); got != "false" {
+		t.Fatalf("CR/LF must be rejected, got %q", got)
+	}
+	if got := AKOptionValue("a\x00b"); got != "false" {
+		t.Fatalf("NUL must be rejected, got %q", got)
+	}
+}

@@ -71,7 +71,7 @@
 dialhome relay init
 
 # 同机部署（relay 与节点同在 102 本机）
-dialhome relay init --advertise 127.0.0.1:22
+dialhome relay init --advertise HOST:PORT [--relay-user USER] 127.0.0.1:22
 ```
 `relay init` 做的事：
 1. 创建 `~/.dialhome`（0700）与 `~/.dialhome/backups/`。
@@ -333,3 +333,12 @@ dialhome migrate --from-legacy [--legacy-dir DIR]
 ```
 
 需要把旧版机器迁过来？看 [`MIGRATION_GUIDE.md`](./MIGRATION_GUIDE.md)。
+
+## 附：2026-11-15 代码审评修复（P1/P2）
+
+- **P1 撤销凭证漏洞**：`relay revoke <name>` 现在会同时删除该节点**全部**登记凭证记录、对应 `authorized_keys` 凭证行，并清空墓碑上的 `CredentialID`。`relay-helper` 的 `EnrollCommand` 另加两道检查：节点处于 `revoked` 直接拒绝；凭证 ID 不等于节点当前 `CredentialID` 也拒绝。已在 102 上用**真实 SSH**（临时 rootless sshd + 旧凭证私钥 + replay 的 AK 行）跑通两条负向路径：`DENY: unknown credential` 与 `DENY: victim is revoked`，节点始终保持 revoked。
+- **Forced command 路径转义**：helper 路径分别做 POSIX shell 单引号引用与 authorized_keys 选项值转义（`ShellQuote` / `AKOptionValue`），支持带空格、引号、`$()`、反引号的路径；CR/LF/NUL 直接拒绝。
+- **端口分配**：`livePorts` 现识别 `0.0.0.0:` / `[::]:` / `*:` 等所有通配与 IPv6 监听，不再误分配已占用端口。
+- **purge**：`relay purge <name>` 删除凭证记录时同步删除其 AK 行，避免 sshd 里留下失效公钥。
+- **部署参数**：新增 `relay init --relay-user USER`（写入 registry 的 `advertise_user`）；凭证里的 `relay_user` 按 配置 → `$USER` → `$USERNAME` → `user` 回退，不再写死。测试可用 `DIALHOME_RELAY_DIR` / `DIALHOME_RELAY_AK` 把 relay 数据目录与 AK 重定向到沙箱。
+- **构建可复现**：CI 的 `setup-go` 与 `go.mod` 统一为 Go 1.27，并设 `GOTOOLCHAIN: local`。

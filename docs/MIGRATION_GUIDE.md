@@ -264,3 +264,5 @@ sshd 不会因此断开既有会话（生产实测零中断）。
 相关：部署与日常运维命令见 [`RELAY_MANUAL.md`](./RELAY_MANUAL.md)；
 安全不变量与负向矩阵见 [`SECURITY_MODEL.md`](./SECURITY_MODEL.md)；
 登记/运行协议见 [`PROTOCOL.md`](./PROTOCOL.md)。
+
+> 2026-11-15 审评修复：`relay migrate-legacy` 幂等性不变；`relay revoke` 现在会连带清除登记凭证（防止撤销被绕过），迁移回滚流程不受影响。

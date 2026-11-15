@@ -58,7 +58,7 @@ func usage() error {
   dialhome node install [--mode temporary|persistent] [--credential FILE] [--relay USER@HOST:PORT] [--name NAME] [--openssh-zip FILE]
   dialhome node run | status | stop | uninstall | logs [channel]
   dialhome controller init | list | status | anchors <node> | shell <node> | exec <node> <command...>
-  dialhome relay init [--advertise HOST:PORT] | list | inspect <name> | revoke <name> | purge <name> | ports
+  dialhome relay init [--advertise HOST:PORT] [--relay-user USER] | list | inspect <name> | revoke <name> | purge <name> | ports
   dialhome relay credentials issue <name> [--manager-pub FILE] | revoke <id>
   dialhome relay migrate-legacy [LEGACY-DIR]   (idempotent: re-registers surviving AK lines)
   dialhome relay-helper --port <p> tunnel | --credential <id> enroll   (internal forced command)

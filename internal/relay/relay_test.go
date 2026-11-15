@@ -44,6 +44,53 @@ func issueCredential(t *testing.T, h *Helper, name, credID string, expireOffset 
 	}
 }
 
+// TestEnrollRejectsRevokedNode locks the P1 security fix (2026-11-15): an
+// unused credential for a node that was later revoked must NOT resurrect it.
+func TestEnrollRejectsRevokedNode(t *testing.T) {
+	sub := submittedPub(t)
+	h, _ := testHelper(t)
+	issueCredential(t, h, "hp66", "cred-1", 24*time.Hour, "")
+	// simulate `relay revoke` terminal state (credential cleanup is CLI-side;
+	// the helper must still refuse even if the credential record survived)
+	if err := h.Store.WithLock(func(r *Registry) error {
+		r.Nodes["hp66"].State = "revoked"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out, code := h.EnrollCommand("cred-1", "enroll "+sub)
+	if code == 0 || !strings.Contains(out, "revoked") {
+		t.Fatalf("revoked node must be refused, got code=%d out=%q", code, out)
+	}
+	r, _ := h.Store.Load()
+	if r.Nodes["hp66"].State != "revoked" {
+		t.Fatal("revoked node was resurrected")
+	}
+}
+
+// TestEnrollRejectsSupersededCredential locks the second P1 guard: re-issuing a
+// credential for a node changes node.CredentialID, so the OLD credential must
+// never re-activate the node.
+func TestEnrollRejectsSupersededCredential(t *testing.T) {
+	sub := submittedPub(t)
+	h, _ := testHelper(t)
+	issueCredential(t, h, "hp66", "cred-old", 24*time.Hour, "")
+	if err := h.Store.WithLock(func(r *Registry) error {
+		r.Nodes["hp66"].CredentialID = "cred-new"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out, code := h.EnrollCommand("cred-old", "enroll "+sub)
+	if code == 0 || !strings.Contains(out, "not current") {
+		t.Fatalf("superseded credential must be refused, got code=%d out=%q", code, out)
+	}
+	r, _ := h.Store.Load()
+	if r.Nodes["hp66"].State != "pending" {
+		t.Fatal("superseded credential changed node state")
+	}
+}
+
 func TestEnrollHappyPath(t *testing.T) {
 	sub := submittedPub(t)
 	h, dir := testHelper(t)
@@ -250,5 +297,35 @@ func TestAllocatePairExhaustion(t *testing.T) {
 	live := []int{13442} // as parsed from `ss -ltn` output
 	if _, err := AllocatePair(r, []int{13440, 13441}, live); err == nil {
 		t.Fatal("live listening port must block allocation")
+	}
+}
+
+// TestLivePortsFromSSIncludesWildcardBinds locks review finding P2: a port held
+// by a wildcard/IPv6 listener must be seen, or AllocatePair would hand it out
+// and the node's -R would fail at connect time.
+func TestLivePortsFromSSIncludesWildcardBinds(t *testing.T) {
+	ss := "State      Recv-Q Send-Q Local Address:Port  Peer Address:Port\n" +
+		"LISTEN     0      128    127.0.0.1:13441   0.0.0.0:*\n" +
+		"LISTEN     0      128    0.0.0.0:13440     0.0.0.0:*\n" +
+		"LISTEN     0      128    [::]:13442        [::]:*\n" +
+		"LISTEN     0      128    *:13443            *:*\n" +
+		"LISTEN     0      128    [::1]:13401       [::]:*\n" +
+		"LISTEN     0      128    0.0.0.0:22        0.0.0.0:*\n"
+	got := LivePortsFromSS(ss)
+	want := map[string]bool{"13441": true, "13440": true, "13442": true, "13443": true, "13401": true, "22": true}
+	for _, p := range got {
+		if !want[p] {
+			t.Fatalf("unexpected port %q from ss", p)
+		}
+		delete(want, p)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing wildcard/loopback ports: %v (got %v)", want, got)
+	}
+	// numeric-only columns (Recv-Q/Send-Q) must not be mistaken for ports
+	for _, p := range LivePortsFromSS("LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\n") {
+		if p == "128" || p == "0" {
+			t.Fatalf("numeric column misparsed as port: %s", p)
+		}
 	}
 }

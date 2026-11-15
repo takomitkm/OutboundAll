@@ -119,12 +119,36 @@ func Render(entries []Entry) string {
 	return b.String()
 }
 
+// ShellQuote returns s as one POSIX shell word (single quotes; an embedded
+// single quote becomes '\”). Forced commands are executed by the user's login
+// shell, so an unquoted helper path containing spaces/shell metacharacters would
+// be split or interpreted -- evidence: review finding P2 (2026-11-15).
+// Windows cmd.exe does not understand single quotes; helper paths on Windows
+// relays must therefore avoid spaces (documented in RELAY_MANUAL).
+func ShellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// AKOptionValue quotes s as an authorized_keys option value. Inside command="..."
+// OpenSSH only recognises \" and \\ as escapes; CR/LF/NUL would break the line
+// and are rejected by returning an empty, safe placeholder.
+func AKOptionValue(s string) string {
+	if strings.ContainsAny(s, "\r\n\x00") {
+		return "false"
+	}
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	return `"` + r.Replace(s) + `"`
+}
+
 // NodeLine renders the canonical restricted line for a node.
 // The 127.0.0.1 literal is a security boundary (PITFALLS B1): never localise it.
 func NodeLine(helperPath string, ports Ports, pub crypto.AuthorizedKey, name string) string {
 	opts := fmt.Sprintf(
-		"restrict,command=%q,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
-		helperCommand(helperPath, ports.SSH), ports.SSH, ports.App)
+		"restrict,command=%s,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
+		AKOptionValue(helperCommand(helperPath, ports.SSH)), ports.SSH, ports.App)
 	return opts + " " + pub.Line()[:strings.LastIndex(pub.Line(), " ")+1] + "dialhome-node-" + name
 }
 
@@ -146,23 +170,23 @@ func LineFromParts(p PublicKeyLine) string {
 // NodeLineRaw is NodeLine for keys that arrive pre-parsed (migration path).
 func NodeLineRaw(helperPath string, ports Ports, pub PublicKeyLine, name string) string {
 	opts := fmt.Sprintf(
-		"restrict,command=%q,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
-		helperCommand(helperPath, ports.SSH), ports.SSH, ports.App)
+		"restrict,command=%s,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
+		AKOptionValue(helperCommand(helperPath, ports.SSH)), ports.SSH, ports.App)
 	return opts + " " + LineFromParts(pub) + " dialhome-node-" + name
 }
 
 // CredentialLine renders the enrollment-credential restricted line (no forwarding at all).
 func CredentialLine(helperPath string, credID string, pub crypto.AuthorizedKey) string {
-	return fmt.Sprintf("restrict,command=%q,no-port-forwarding,no-pty,no-user-rc %s",
-		helperCommandEnroll(helperPath, credID), pub.Type+" "+b64Body(pub)+" dialhome-credential-"+credID)
+	return fmt.Sprintf("restrict,command=%s,no-port-forwarding,no-pty,no-user-rc %s",
+		AKOptionValue(helperCommandEnroll(helperPath, credID)), pub.Type+" "+b64Body(pub)+" dialhome-credential-"+credID)
 }
 
 func helperCommand(helperPath string, port int) string {
-	return helperPath + " relay-helper --port " + fmt.Sprint(port) + " tunnel"
+	return ShellQuote(helperPath) + " relay-helper --port " + fmt.Sprint(port) + " tunnel"
 }
 
 func helperCommandEnroll(helperPath, credID string) string {
-	return helperPath + " relay-helper --credential " + credID + " enroll"
+	return ShellQuote(helperPath) + " relay-helper --credential " + credID + " enroll"
 }
 
 func b64Body(pub crypto.AuthorizedKey) string {

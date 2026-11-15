@@ -296,3 +296,5 @@ sudo dialhome service uninstall --scope system
 ```
 
 载入强制的不变式：通道 `local/remote` 必须以 `127.0.0.1:` 开头；至少有一个名为 `ssh` 的通道；`mode ∈ {persistent, temporary}`；重试参数自洽。
+
+> 2026-11-15 审评修复：凭证里的 `relay_user` 由 relay 侧 `--relay-user` 配置（不再写死 `user`）；部署参数见 RELAY_MANUAL。

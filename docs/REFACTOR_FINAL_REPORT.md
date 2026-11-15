@@ -76,6 +76,12 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 | F10 | ssh 连接选项放在 `user@host` 之后被吞成远程命令 | `ProbeAnchorSSH` 把选项+目标置于远程命令之前（回归测试 `TestBuildProbeArgsOrder`） |
 | F11 | 节点每次 install 重生成 host key ⇒ controller 报 REMOTE HOST IDENTIFICATION HAS CHANGED | dialhome 锚点用控制器私有 known_hosts + `StrictHostKeyChecking=accept-new` |
 | F12 | no-op `migrate-legacy` 仍重写 AK（每次多一个空行） | 仅真实改写时写盘（回归测试 `TestMigrateLegacyIdempotentKeepsAKByteForByte`） |
+| F13 | **P1 安全**：撤销后未消费凭证可复活节点 | revoke 清凭证+AK 行；helper 双重 guard（revoked / 凭证 ID 非当前）；真实 SSH 负向测试 |
+| F14 | forced command 路径带空格被 shell 拆词 | 分离 `ShellQuote` + `AKOptionValue` 两层转义 |
+| F15 | `livePorts` 忽略 `0.0.0.0:` / `[::]:` 通配监听 | 提取所有本地地址端口，单测覆盖 6 种写法 |
+| F16 | `purge` 留下失效凭证 AK 行 | purge 同步 `RemoveCredential` + 原子写盘 |
+| F17 | `relay_user` / 默认地址硬编码 | `relay init --relay-user` + `advertiseUser()` 层级回退 |
+| F18 | CI 用 Go 1.24 而 `go.mod` 要 1.27 | 统一 1.27 + `GOTOOLCHAIN: local` |
 
 ---
 
@@ -137,6 +143,21 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 
 即：**凭证签发 → 本地生成密钥 → enroll 绑定 → 隧道上线 → 控制器经 ProxyJump +
 manager key 进入节点并执行 `hostname && whoami`** 全链路打通，三身份各司其职。
+
+### 代码审评修复（2026-11-15，P1 + 4×P2 + 构建可复现性）
+
+外部审评指出 6 项问题，全部修复并加回归测试：
+
+| 级别 | 问题 | 修复与证据 |
+|---|---|---|
+| **P1** | 撤销节点不同时撤销登记凭证 ⇒ 旧凭证可把节点重新置 active | `relayRevoke` 删除该节点全部凭证记录 + AK 行并清空 `CredentialID`；`EnrollCommand` 新增 `revoked` 状态检查与「凭证 ID 必须等于节点当前 ID」检查。两条**真实 SSH 负向测试**（102 上临时 rootless sshd、旧凭证私钥、replay 的 AK 行）：① 常规 revoke 后 `DENY: unknown credential`；② 人为恢复凭证记录后 `DENY: victim is revoked`。节点始终保持 `revoked`，AK 未重建，生产 registry/AK 未受影响 |
+| P2 | Forced command 路径未做 POSIX shell 引用 | 新增 `ShellQuote()`（单引号 + `'''`）与 `AKOptionValue()`（`"`/`\`、拒绝 CR/LF/NUL），`NodeLine`/`NodeLineRaw`/`CredentialLine` 全部改用双层转义；`TestForcedCommandQuoting` 覆盖空格、单双引号、反斜杠、`$(id)`、反引号、分号 |
+| P2 | 端口分配忽略通配地址监听 | `LivePortsFromSS` 解析所有本地地址形式（`0.0.0.0:`、`[::]:`、`*:`、`[::1]:`、IPv4 回环、`:::`），`cli.livePorts()` 复用同一函数；`TestLivePortsFromSSIncludesWildcardBinds` |
+| P2 | `purge` 未删凭证 AK 行 | `relayPurge` 接收 `akPath`，删除凭证记录时一并 `RemoveCredential` + 原子写回；测试断言无关凭证/外来行保留 |
+| P2 | 部署参数硬编码 | `relay init --relay-user USER` 写入 registry；`advertiseUser()` 按 配置 → `$USER` → `$USERNAME` → 兼容默认 回退；`--advertise` 帮助写明默认站点地址与 co-located 用法 |
+| 构建 | `go.mod`=1.27 而 CI `setup-go`=1.24 | 三处统一 `1.27` + 工作流级 `GOTOOLCHAIN: local`（不静默下载工具链） |
+
+`docs/SECURITY_MODEL.md` 负向矩阵新增 **N11**（撤销后凭证不可复活），`docs/PITFALLS.md` 新增 I 组记录全部 7 条。
 
 安全边界同步复核：三身份私钥分别只存在于节点/控制器/凭证文件；通道全为
 字面量 `127.0.0.1:`；AK 外来行逐字节保留；迁移与登记幂等。

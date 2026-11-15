@@ -249,3 +249,5 @@ machine school: all anchors failed (see trail above)
 3. **Node**：`dialhome node install --mode persistent --credential cred.json`（见 NODE_MANUAL §3）
 4. **Controller**：编辑 `machines.json` 加入该节点与其锚点（见 §6）
 5. **验证**：`dialhome controller list` → `dialhome controller status` → `dialhome controller exec <node> 'hostname && whoami'`
+
+> 2026-11-15 审评修复：撤销节点现在同时撤销未消费的登记凭证，Controller 侧无需改动；详见 SECURITY_MODEL N11。

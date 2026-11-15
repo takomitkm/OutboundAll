@@ -76,6 +76,7 @@ logging 包对以下模式统一替换 `[REDACTED]`：`-----BEGIN`、`sk-[A-Za-z
 | N8 | manager key 不能用于隧道 | manager 公钥不在 relay AK（仅 Node AK） |
 | N9 | 过期/已用凭证不能再登记 | helper 拒绝 |
 | N10 | 撤销节点后旧 key 失效 | revoke 后重连 → Permission denied |
+| N11 | 撤销后未消费的登记凭证不能复活节点 | `relay revoke` 同时清除该节点全部凭证记录+AK 行；`EnrollCommand` 再校验 node.State!=revoked 且凭证 ID 等于节点当前 CredentialID；**真实 SSH 负向测试**（临时 rootless sshd + 旧凭证私钥 + replay 的 AK 行）两道防线均 DENY，节点保持 revoked |
 
 继承自旧实现的已实测证据：B1（127.0.0.1 精确匹配）、permitopen=1 拒 -L、
 错 key/密码通道拒绝（REFACTOR_BASELINE §3.2、SSH_BACKEND_MATRIX §1）。

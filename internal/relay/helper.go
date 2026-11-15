@@ -94,6 +94,19 @@ func (h *Helper) EnrollCommand(credID, original string) (string, int) {
 		if !ok {
 			return fmt.Errorf("%w: %s (dangling credential)", ErrNodeMissing, cred.Node)
 		}
+		// P1 (2026-11-15 security fix): a revoked node must NOT be resurrected by
+		// a still-unused enrollment credential. The old flow checked only the
+		// credential itself and then wrote node.State = "active", which bypassed
+		// `relay revoke` entirely. Both guards are required:
+		//   (a) terminal revoked state; and
+		//   (b) the credential must be the node's CURRENT one (a superseded
+		//       credential from an earlier issue must never re-activate it).
+		if node.State == "revoked" {
+			return fmt.Errorf("%w: %s is revoked", ErrCredentialBad, cred.Node)
+		}
+		if node.CredentialID != "" && node.CredentialID != credID {
+			return fmt.Errorf("%w: credential %s is not current for node %s", ErrCredentialBad, credID, cred.Node)
+		}
 		// bind the submitted public key to THIS credential's node only
 		node.TunnelKeyFP = fp
 		node.State = "active"

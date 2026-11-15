@@ -21,7 +21,7 @@ dialhome controller init | list | status | anchors <node> | shell <node> | exec 
 
 **relay（Linux 中继，管理 authorized_keys 与登记）**
 ```
-dialhome relay init [--advertise HOST:PORT] | list | inspect <name> | revoke <name> | purge <name> | ports
+dialhome relay init [--advertise HOST:PORT] [--relay-user USER] | list | inspect <name> | revoke <name> | purge <name> | ports
 dialhome relay credentials issue <name> [--manager-pub FILE] | revoke <id>
 dialhome relay migrate-legacy [LEGACY-DIR]        # 幂等：仅重写 forced command，重登记存活 AK 行
 ```
@@ -151,9 +151,9 @@ dialhome node install --credential @eyJjcmVk... --mode temporary
 
 ### dialhome relay init
 
-**语法**：`dialhome relay init [--advertise HOST:PORT]`
+**语法**：`dialhome relay init [--advertise HOST:PORT] [--relay-user USER]`
 
-**行为**：初始化 `registry.json`（默认）+ helper 路径 + 通告地址（默认 baked 常量 `10.101.54.192:18322`，`--advertise` 覆盖）；要求系统 `authorized_keys`（`~/.ssh/authorized_keys`）已存在，否则报错。所有 AK 写操作原子写 + 时间戳备份 + `flock` 串行化。
+**行为**：初始化 `registry.json`（默认）+ helper 路径 + 通告地址（默认 `10.101.54.192:18322`，`--advertise` 覆盖；`--relay-user` 设置节点拨入的 SSH 账户，默认取 `$USER`/`$USERNAME`）；要求系统 `authorized_keys`（测试可用 `DIALHOME_RELAY_DIR` / `DIALHOME_RELAY_AK` 重定向）（`~/.ssh/authorized_keys`）已存在，否则报错。所有 AK 写操作原子写 + 时间戳备份 + `flock` 串行化。
 
 ### dialhome relay list / inspect / ports
 

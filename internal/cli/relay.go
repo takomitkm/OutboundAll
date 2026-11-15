@@ -33,7 +33,13 @@ func relayPaths() (store, ak, helperBin string, err error) {
 	if herr != nil {
 		return "", "", "", herr
 	}
-	return base, filepath.Join(home, ".ssh", "authorized_keys"), bin, nil
+	akPath := filepath.Join(home, ".ssh", "authorized_keys")
+	// Tests (and operator-side dry runs) can redirect the AK to a sandbox file.
+	// Production never sets this; the default is always the system AK.
+	if custom := os.Getenv("DIALHOME_RELAY_AK"); custom != "" {
+		akPath = custom
+	}
+	return base, akPath, bin, nil
 }
 
 func runRelayImpl(args []string) error {
@@ -50,15 +56,19 @@ func runRelayImpl(args []string) error {
 	switch args[0] {
 	case "init":
 		fsInit := flag.NewFlagSet("relay init", flag.ContinueOnError)
-		advertise := fsInit.String("advertise", "", "address nodes dial for enrollment (default: baked constant)")
+		advertise := fsInit.String("advertise", "", "HOST:PORT nodes dial for enrollment (default: documented site address 10.101.54.192:18322; use 127.0.0.1:22 for co-located)")
+		relayUser := fsInit.String("relay-user", "", "SSH account on the relay that nodes dial (default: current user)")
 		if err := fsInit.Parse(args[1:]); err != nil {
 			return err
 		}
-		// registry.json default + helper path + advertised address
+		// registry.json default + helper path + advertising config
 		err = store.WithLock(func(r *relay.Registry) error {
 			r.HelperPath = helperBin
 			if *advertise != "" {
 				r.Advertise = *advertise
+			}
+			if *relayUser != "" {
+				r.AdvertiseUser = *relayUser
 			}
 			return nil
 		})
@@ -158,7 +168,7 @@ func runRelayImpl(args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("%w: purge <name>", errs.ErrUsage)
 		}
-		return relayPurge(store, args[1])
+		return relayPurge(store, akPath, args[1])
 
 	case "reconcile", "verify":
 		return fmt.Errorf("%w: relay %s lands in Phase 6/9 (needs node channel)", errs.ErrNotImplemented, args[0])
@@ -227,7 +237,7 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, ma
 			"ports_app":               n.Ports.App,
 			"relay_address":           advertiseAddr(r),
 			"relay_port":              advertisePort(r),
-			"relay_user":              "user",
+			"relay_user":              advertiseUser(r),
 			"expires_at":              exp,
 		}
 		docB, _ := json.MarshalIndent(doc, "", "  ")
@@ -270,6 +280,20 @@ func relayRevoke(store *relay.Store, akPath, name string) error {
 			return fmt.Errorf("node %s not found", name)
 		}
 		n.State = "revoked"
+		// P1: a still-unused enrollment credential bound to this node could
+		// otherwise resurrect it (EnrollCommand used to set State=active without
+		// checking). Retire every credential of this node alongside the node key,
+		// and remove their authorized_keys lines. Both the helper guard and this
+		// cleanup are required for defence in depth.
+		credIDs := []string{}
+		for id, c := range r.Credentials {
+			if c.Node == name {
+				credIDs = append(credIDs, id)
+				delete(r.Credentials, id)
+			}
+		}
+		// invalidate any stale binding left on the tombstone
+		n.CredentialID = ""
 		raw, err := os.ReadFile(akPath)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
@@ -279,19 +303,24 @@ func relayRevoke(store *relay.Store, akPath, name string) error {
 		if !removed {
 			fmt.Println("node AK line already absent")
 		}
+		for _, id := range credIDs {
+			entries, _ = relay.RemoveCredential(entries, id)
+		}
 		if err := relay.WriteWithBackup(akPath, relay.Render(entries)); err != nil {
 			return err
 		}
-		fmt.Printf("revoked %s (ports %d/%d freed in registry; listeners disappear after sshd re-key or timeout)\n",
-			name, n.Ports.App, n.Ports.SSH)
+		fmt.Printf("revoked %s (ports %d/%d freed; %d enrollment credential(s) retired)\n",
+			name, n.Ports.App, n.Ports.SSH, len(credIDs))
 		return nil
 	})
 }
 
-// relayPurge removes a revoked node's registry tombstone. It refuses active/pending
-// nodes deliberately -- purging a live node would silently free its port pair for
-// another enrollment. Does not touch authorized_keys (revoke already did that).
-func relayPurge(store *relay.Store, name string) error {
+// relayPurge removes a revoked node's registry tombstone AND every credential
+// still bound to it -- including the corresponding authorized_keys lines, so no
+// dead public key is left trusted by sshd (review finding P2). It refuses
+// active/pending nodes deliberately: purging a live node would silently free its
+// port pair for another enrollment.
+func relayPurge(store *relay.Store, akPath, name string) error {
 	return store.WithLock(func(r *relay.Registry) error {
 		n, ok := r.Nodes[name]
 		if !ok {
@@ -301,14 +330,29 @@ func relayPurge(store *relay.Store, name string) error {
 			return fmt.Errorf("refusing to purge node %s in state %q (revoke it first)", name, n.State)
 		}
 		delete(r.Nodes, name)
-		// also drop any credentials bound to this node
+		credIDs := []string{}
 		for id, c := range r.Credentials {
 			if c.Node == name {
+				credIDs = append(credIDs, id)
 				delete(r.Credentials, id)
 			}
 		}
-		fmt.Printf("purged %s (tombstone + credentials removed; ports %d/%d free for reuse)\n",
-			name, n.Ports.App, n.Ports.SSH)
+		// remove the credential AK lines too: registry and sshd must agree
+		if len(credIDs) > 0 {
+			raw, err := os.ReadFile(akPath)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			entries := relay.Parse(string(raw))
+			for _, id := range credIDs {
+				entries, _ = relay.RemoveCredential(entries, id)
+			}
+			if err := relay.WriteWithBackup(akPath, relay.Render(entries)); err != nil {
+				return err
+			}
+		}
+		fmt.Printf("purged %s (tombstone + %d credential(s) + their AK lines removed; ports %d/%d free for reuse)\n",
+			name, len(credIDs), n.Ports.App, n.Ports.SSH)
 		return nil
 	})
 }
@@ -368,30 +412,39 @@ func livePorts() []int {
 	if err != nil {
 		return nil
 	}
+	// single source of truth: relay.LivePortsFromSS handles wildcard/IPv6 binds
 	var ports []int
-	for _, line := range strings.Split(string(out), "\n") {
-		for _, field := range strings.Fields(line) {
-			if strings.HasPrefix(field, "127.0.0.1:") {
-				p := 0
-				for _, r := range field[len("127.0.0.1:"):] {
-					if r < '0' || r > '9' {
-						p = 0
-						break
-					}
-					p = p*10 + int(r-'0')
-				}
-				if p > 0 {
-					ports = append(ports, p)
-				}
-			}
+	for _, s := range relay.LivePortsFromSS(string(out)) {
+		p := 0
+		for _, r := range s {
+			p = p*10 + int(r-'0')
+		}
+		if p > 0 {
+			ports = append(ports, p)
 		}
 	}
 	return ports
 }
 
-// advertiseAddr returns the relay-advertised dial address (registry override or
-// the documented default public address).
+// advertiseUser is the SSH account on the relay that nodes dial. Configurable
+// via `relay init --relay-user`; falls back to the process user (which is the
+// relay account on a normal deployment), then to the legacy "user" default.
+func advertiseUser(r *relay.Registry) string {
+	if r != nil && r.AdvertiseUser != "" {
+		return r.AdvertiseUser
+	}
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	if u := os.Getenv("USERNAME"); u != "" {
+		return u
+	}
+	return "user"
+}
+
 // advertiseAddr returns the HOST part only (port comes from advertisePort).
+// The default is the documented site address; override with `relay init --advertise`
+// (e.g. 127.0.0.1:22 when controller/relay/node share a host).
 func advertiseAddr(r *relay.Registry) string {
 	full := "10.101.54.192"
 	if r != nil && r.Advertise != "" {
