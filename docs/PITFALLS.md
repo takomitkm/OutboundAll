@@ -82,3 +82,25 @@
 | G1 | 杀掉"上一批工具调用起"的进程后，命令执行器自己崩（`job runner exited ...`） | 运行器对子进程做 job 记账，杀其子孙会破坏记账 | 用**持久终端（PTY）**做清理；或让被杀进程走独立计划任务 |
 | G2 | 嵌套引号把远端 PowerShell 命令搞坏（中文乱码 + `ParserError`） | `工作站 → relay → 节点 → powershell` 四层引号 | 远端命令一律 `-EncodedCommand`（UTF-16LE base64）+ 本地脚本文件承载 |
 | G3 | 中文输出乱码 | 本机 ACP=936（GBK），PS 5.1 默认按 ANSI 读写 | 所有 `Get-Content`/`Set-Content`/`Out-File` 加 `-Encoding UTF8`；Python `open(..., encoding='utf-8')` |
+---
+
+## H. Go 重构版（2026-11 新增，全部真机撞到）
+
+| # | 症状 | 根因 | 修法 |
+|---|---|---|---|
+| H1 | Go spawn `powershell -Command "Expand-Archive ..."` 返回 0，但目标目录**没有**解压结果 | 父进程无控制台时 `Expand-Archive` 的 `Write-Progress` 读控制台缓冲区失败（`Win32 internal error "Access is denied" 0x5`），命令**中途放弃却仍 exit 0** | 不要调 PowerShell 解压；用 Go 标准库 `archive/zip`（本项目 `internal/openssh/extract_windows.go`，带 zip-slip 防护） |
+| H2 | `ssh.exe -y -f key` 报 `ERROR: Access is denied.` | `ssh.exe` **没有** `-y` 选项，它把 `-y` 当连接参数 | 公钥渲染用 `ssh-keygen -y -f key`（本项目 `pubOf`） |
+| H3 | Linux 上 `fork/exec /usr/sbin/ssh-keygen: no such file` | 从 `sshd` 路径推导 `ssh-keygen` 只在便携包里成立；系统包的 keygen 在 `/usr/bin` | 非 Windows 固定 `/usr/bin/ssh-keygen`（回退 `/bin`） |
+| H4 | `ssh -i K -p P user@host -o BatchMode=yes echo marker` 返回 255，marker 没执行 | ssh 把**第一个非选项参数之后**的一切当远程命令；`-o` 与 `echo` 被吞成远端命令 | 连接选项与目标必须在远程命令**之前**：`ssh [opts] user@host echo marker`；回归测试 `TestBuildProbeArgsOrder` |
+| H5 | controller 报 `REMOTE HOST IDENTIFICATION HAS CHANGED`，节点明明刚装好 | 节点每次 install 重新生成 host key，而 `127.0.0.1` 的 known_hosts 是上一台机器的 | dialhome 锚点用**控制器私有** known_hosts + `StrictHostKeyChecking=accept-new`，不污染用户 `~/.ssh/known_hosts` |
+| H6 | relay 上 `relay credentials issue` 成功，但 helper 报 `unknown credential` | relay 子命令尊重了 `DIALHOME_DATA_DIR` 覆盖，而 helper 在 sshd 下运行**不继承**该变量，两者读了不同 registry | relay/relay-helper 数据目录**恒定** `~/.dialhome`（`relayDataDir()`），只有显式 `--base` 可覆盖 |
+| H7 | 凭证里 `relay_address` 是公网地址，同机节点连不上 | `advertise` 默认公网口，但 relay 本机 sshd 实际监听 22（18322 是路由器转发口） | `relay init --advertise 127.0.0.1:22` 用于同机部署；`relay_port` 从 advertise 字符串推导 |
+| H8 | Go 里 `if ok, v := f(); ok { ... }` 之后用 `v` 报 undefined | 简短变量声明的作用域是 **if 语句块内**（含 else），块外不可见 | 先调用后判断：`ok, v := f(); if ok { ... }` |
+| H9 | 幂等命令（`migrate-legacy`）每跑一次 AK 就多一个空行 | `Render()` 会给每个 Entry（含末尾空行）追加 `\n`，无条件写盘就累积 | 无改写时**跳过写盘**；回归测试 `TestMigrateLegacyIdempotentKeepsAKByteForByte` |
+| H10 | forced command 里 `flag` 解析不到值（如 `enroll` 报 unknown credential） | Go `flag` 包**遇到第一个位置参数即停止解析** | 旗标必须在位置动词之前：`relay-helper --credential ID enroll` |
+| H11 | 部署新二进制到正在运行的目标路径，scp 成功但远端时间戳/哈希不变 | 目标文件被正在运行的进程占用/替换被延迟 | 先 `pkill` 或 scp 到 `/tmp` 再 `install -m 755 -o user -g user`；部署后用 `sha256sum` 双向比对 |
+| H12 | `node run` 报 `open .../config.json: no such file`（明明 install 过） | `node run` 与 `node install` 用了不同的 `DIALHOME_DATA_DIR` | 同一角色命令必须用同一数据目录；E2E 脚本里显式对 controller 命令设同一 `CTRL_DIR` |
+| H13 | Windows agent 沙箱里 `reg add HKCU\...\Run` 报 `Access is denied` | agent 工具的子进程继承**受限令牌**，不是产品缺陷 | 用户级注册表写入需在真实桌面会话验证；文档已标"需真实桌面复验" |
+| H14 | Windows 上 `os.Rename` 到已存在的目录静默失败 | Windows 不允许 rename 覆盖目录 | 目标目录先 `os.RemoveAll` 再 `os.Rename` |
+| H15 | `os.Chmod(0600)` 在 NTFS 上是 no-op，密钥仍宽 ACL | NTFS 用 ACL 不用 mode bits | 用 `icacls /inheritance:r /grant:<user>:F`（本项目 `platform.HardenFile`） |
+| H16 | `sshd -t -N "" -f key` 生成 host key 报 `Extra argument ed25519` | portable `sshd` 不接受 key 生成参数 | 用 `ssh-keygen -q -t ed25519 -N "" -f hostkey` |

@@ -45,7 +45,7 @@ func Run(argv []string) error {
 	case "keygen":
 		return runKeygen(rest)
 	case "version":
-		fmt.Println("dialhome " + version)
+		fmt.Println("dialhome " + version + " (" + commit + ")")
 		return nil
 	default:
 		return fmt.Errorf("%w: unknown command %q", errs.ErrUsage, role)
@@ -77,8 +77,20 @@ docs/NODE_MANUAL.md, docs/CONTROLLER_MANUAL.md, docs/RELAY_MANUAL.md, docs/man-d
 	return nil
 }
 
-// version is set by the release build via -ldflags; keep a dev default.
+// version/commit are set by the release build via -ldflags; keep dev defaults.
 var version = "dev"
+var commit = "none"
+
+// SetVersion injects build metadata from main (ldflags cannot target this package
+// directly when the binary is built from ./cmd/dialhome).
+func SetVersion(v, c string) {
+	if v != "" {
+		version = v
+	}
+	if c != "" {
+		commit = c
+	}
+}
 
 // runKeygen writes a fresh ed25519 pair: private key -> --out (hardened), public
 // line -> stdout. Used by node install internally and by tests.

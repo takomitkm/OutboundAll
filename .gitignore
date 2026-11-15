@@ -6,3 +6,4 @@ secrets/
 *.log
 *.err
 .tmp/
+dist/

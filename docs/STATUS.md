@@ -1,6 +1,28 @@
-# STATUS — 实测记录（截至 2026-11-11）
+# STATUS — 实测记录
 
 这份文件的作用：**区分"证过的"和"没证的"**，避免以后把猜测当结论。
+
+> **Go 重构版（`go-refactor` 分支）现状 — 2026-11-15**
+>
+> 完整的分阶段验收证据见 **[REFACTOR_FINAL_REPORT.md](REFACTOR_FINAL_REPORT.md)**；
+> 本节只给一句话结论与"哪台机器上证的"。
+>
+> | 能力 | 状态 | 证据位置 |
+> |---|---|---|
+> | Relay 安全核心 N1–N10 负向矩阵 | ✅ 全绿 | [PHASE4_ACCEPTANCE.md](PHASE4_ACCEPTANCE.md) |
+> | Node install/run/enroll（Linux Debian 13） | ✅ 真机 | 102；REFACTOR_FINAL_REPORT §5 |
+> | Node install/run/enroll（Windows 11） | ✅ 真机 | 本机 + HP66；§5 |
+> | Controller 多锚点 failover | ✅ 真机 | `school-guest` 校园链路探测 OK |
+> | 全新 Go 链 E2E（controller→relay→node） | ✅ 真机 | `controller exec` → `debian-h61`/`user` |
+> | 生产零中断迁移（旧 magpie 行 → 新 helper） | ✅ 真机 | KEYS-IDENTICAL + 旧 key 仍可用 |
+> | 用户级自启动（Linux systemd --user + XDG） | ✅ 真机 | 102 |
+> | 用户级自启动（Windows HKCU Run） | ⚠️ 沙箱受限，**需真实桌面复验** | §6 |
+> | macOS 全部运行时行为 | ❌ **UNVERIFIED**（无真机） | §9 |
+>
+> 生产 relay 当前 registry：`n-10-110-23-66-2b12`(active, 13440/13441)、
+> `port-13435`(active, 13437/13435)，credentials 空，无测试残留。
+>
+> 以下为 **legacy PS 版**的历史实测记录，保留作证据链参考。
 
 ---
 

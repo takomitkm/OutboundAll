@@ -16,11 +16,19 @@ import (
 	"os"
 
 	"github.com/takomitkm/dialhome/internal/cli"
+	"github.com/takomitkm/dialhome/internal/errs"
 )
 
+// version is injected at release time with
+//
+//	-ldflags "-X main.version=<tag> -X main.commit=<sha>"
+var version = "dev"
+var commit = "none"
+
 func main() {
+	cli.SetVersion(version, commit)
 	if err := cli.Run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "dialhome:", err)
-		os.Exit(1)
+		os.Exit(errs.ExitCode(err))
 	}
 }
