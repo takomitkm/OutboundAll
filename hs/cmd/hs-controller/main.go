@@ -265,10 +265,8 @@ func cmdNode(args []string) int {
 
 func cmdAudit(args []string) int {
 	api := ""
-	rest := args
-	if len(args) >= 2 && args[0] == "--api" && len(args) >= 3 {
+	if len(args) >= 2 && args[0] == "--api" {
 		api = args[1]
-		rest = args[2:]
 	}
 	tok := adminTokenForCLI()
 	return apiCall("GET", apiURL(api)+"/api/v1/audit", tok, nil)
