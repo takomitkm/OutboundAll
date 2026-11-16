@@ -281,10 +281,12 @@ log:
 	if cCode != 0 {
 		// dump every layer before dying: raw headscale nodes JSON (does node-c
 		// have an IP at all?), the client's peer view, and the live policy file
-		if raw, code := runBin(t, nil, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "list", "-o", "json"}); code == 0 {
+		nodesArgv := []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "list", "-o", "json"}
+		if raw, code := runBin(t, nil, nodesArgv...); code == 0 {
 			t.Logf("RAW nodes list at failure:\n%s", raw)
 		}
-		js, jsCode := runBin(t, nil, []string{tsBin, sockArg, "status", "--json"})
+		statusArgv := []string{tsBin, sockArg, "status", "--json"}
+		js, jsCode := runBin(t, nil, statusArgv...)
 		if jsCode == 0 && len(js) > 6000 {
 			js = js[:6000]
 		}
