@@ -21,6 +21,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      # Windows runner images default to core.autocrlf=true: checkout rewrites every
+      # Go file to CRLF and gofmt -l then flags all of them (all 9 CI runs since the
+      # workflow was added failed on exactly this). Normalize before checkout.
+      - name: normalize git line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
