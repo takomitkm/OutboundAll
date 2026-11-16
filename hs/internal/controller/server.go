@@ -194,7 +194,7 @@ func (s *Server) handleRedeem(w http.ResponseWriter, r *http.Request) {
 		httpError(w, 400, "code and hostname required")
 		return
 	}
-	res, err := s.store.Redeem(req.Code, req.Hostname, s.opt.Headscale)
+	res, err := s.store.Redeem(req.Code, req.Hostname, s.opt.Headscale, s.opt.Server)
 	if err != nil {
 		status := 400
 		switch err {

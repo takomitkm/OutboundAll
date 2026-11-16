@@ -103,7 +103,8 @@ type RedeemResult struct {
 
 // Redeem is the atomic one-time redemption (N5': concurrent redeems -- exactly
 // one wins). hostname becomes the node id and must be unique among live nodes.
-func (s *Store) Redeem(code, hostname string, hs HeadscaleAPI) (*RedeemResult, error) {
+// serverURL is the control plane URL handed to the node.
+func (s *Store) Redeem(code, hostname string, hs HeadscaleAPI, serverURL string) (*RedeemResult, error) {
 	var result *RedeemResult
 	err := s.mutate("invite.redeem", "node:"+hostname, "hostname="+hostname, func() error {
 		// sweep expired invitations first so state stays honest
@@ -168,7 +169,7 @@ func (s *Store) Redeem(code, hostname string, hs HeadscaleAPI) (*RedeemResult, e
 			NodeID:       hostname,
 			NodeSecret:   secret,
 			PreauthKey:   key,
-			Server:       hs.ControlURL,
+			Server:       serverURL,
 			InvitationID: inv.ID,
 		}
 		return nil

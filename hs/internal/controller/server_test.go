@@ -40,14 +40,14 @@ func TestInvitationLifecycle(t *testing.T) {
 	if inv.State != InvCreated {
 		t.Fatalf("state = %v", inv.State)
 	}
-	res, err := s.Redeem(code, "win-a", fake)
+	res, err := s.Redeem(code, "win-a", fake, "http://127.0.0.1:8080")
 	if err != nil {
 		t.Fatalf("first redeem: %v", err)
 	}
 	if res.NodeID != "win-a" || res.PreauthKey == "" || res.NodeSecret == "" {
 		t.Fatalf("redeem incomplete: %+v", res)
 	}
-	if _, err := s.Redeem(code, "win-b", fake); err != ErrUsed {
+	if _, err := s.Redeem(code, "win-b", fake, ""); err != ErrUsed {
 		t.Fatalf("second redeem = %v, want ErrUsed", err)
 	}
 	n, ok := s.Node("win-a")
@@ -81,7 +81,7 @@ func TestRedeemAtomicUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, err := s.Redeem(code, fmt.Sprintf("racer-%d", i), fake)
+			_, err := s.Redeem(code, fmt.Sprintf("racer-%d", i), fake, "")
 			mu.Lock()
 			defer mu.Unlock()
 			if err == nil {
@@ -105,18 +105,18 @@ func TestRedeemRejectsExpiredAndRevoked(t *testing.T) {
 	s := newTestStore(t)
 	fake := &FakeHeadscale{}
 	code, _, _ := s.CreateInvitation("", "", -time.Minute, "test") // already expired
-	if _, err := s.Redeem(code, "late", fake); err != ErrExpired {
+	if _, err := s.Redeem(code, "late", fake, ""); err != ErrExpired {
 		t.Fatalf("expired redeem = %v, want ErrExpired", err)
 	}
 	code2, inv2, _ := s.CreateInvitation("", "", time.Hour, "test")
 	if err := s.RevokeInvitation(inv2.ID, "test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Redeem(code2, "revoked", fake); err != ErrRevoked {
+	if _, err := s.Redeem(code2, "revoked", fake, ""); err != ErrRevoked {
 		t.Fatalf("revoked redeem = %v, want ErrRevoked", err)
 	}
 	// wrong code shape
-	if _, err := s.Redeem("totally-wrong-code", "x", fake); err != ErrNoInvitation {
+	if _, err := s.Redeem("totally-wrong-code", "x", fake, ""); err != ErrNoInvitation {
 		t.Fatalf("unknown code = %v, want ErrNoInvitation", err)
 	}
 }
@@ -127,7 +127,7 @@ func TestRevokedNodeRefusesResume(t *testing.T) {
 	s := newTestStore(t)
 	fake := &FakeHeadscale{}
 	code, _, _ := s.CreateInvitation("", "", time.Hour, "test")
-	res, err := s.Redeem(code, "victim", fake)
+	res, err := s.Redeem(code, "victim", fake, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestRevokedNodeRefusesResume(t *testing.T) {
 	}
 	// a second invitation for the same node cannot revive it
 	code2, _, _ := s.CreateInvitation("", "", time.Hour, "test")
-	if _, err := s.Redeem(code2, "victim", fake); err != ErrNodeExists {
+	if _, err := s.Redeem(code2, "victim", fake, ""); err != ErrNodeExists {
 		t.Fatalf("re-enroll revoked node = %v, want ErrNodeExists", err)
 	}
 }
@@ -155,7 +155,7 @@ func TestResumeRejectsWrongSecret(t *testing.T) {
 	s := newTestStore(t)
 	fake := &FakeHeadscale{}
 	code, _, _ := s.CreateInvitation("", "", time.Hour, "test")
-	res, err := s.Redeem(code, "n1", fake)
+	res, err := s.Redeem(code, "n1", fake, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestStoreNeverHoldsPlaintextSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := s.Redeem(code, "secretless", fake)
+	res, err := s.Redeem(code, "secretless", fake, "")
 	if err != nil {
 		t.Fatal(err)
 	}
