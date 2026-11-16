@@ -33,9 +33,9 @@ type Store struct {
 }
 
 type data struct {
-	Version     int                    `json:"version"`
+	Version int `json:"version"`
 	// by node id
-	Nodes       map[string]*NodeRecord `json:"nodes"`
+	Nodes map[string]*NodeRecord `json:"nodes"`
 	// by invitation id
 	Invitations map[string]*Invitation `json:"invitations"`
 	AdminToken  string                 `json:"admin_token_sha256"`
@@ -45,9 +45,9 @@ type data struct {
 
 // HeadscaleSettings pins how hs-controller talks to the local headscale.
 type HeadscaleSettings struct {
-	BinPath     string `json:"bin_path"`
-	ConfigPath  string `json:"config_path"`
-	UserID      uint64 `json:"user_id"`
+	BinPath    string `json:"bin_path"`
+	ConfigPath string `json:"config_path"`
+	UserID     uint64 `json:"user_id"`
 	// RFC3339 of last id check
 	UserCacheAt string `json:"user_cache_at,omitempty"`
 }
@@ -89,7 +89,7 @@ const (
 
 // Invitation is a one-time enrollment invitation.
 type Invitation struct {
-	ID        string          `json:"id"`
+	ID string `json:"id"`
 	// never the code itself
 	CodeSHA   string          `json:"code_sha256"`
 	Label     string          `json:"label,omitempty"`
@@ -103,11 +103,11 @@ type Invitation struct {
 
 // AuditEvent is one management-plane action (who/what/when, no secrets).
 type AuditEvent struct {
-	At     time.Time `json:"at"`
+	At time.Time `json:"at"`
 	// invite.create / invite.redeem / node.resume / node.revoke / invite.expire ...
-	Kind   string    `json:"kind"`
-	Actor  string    `json:"actor"`
-	Detail string    `json:"detail,omitempty"`
+	Kind   string `json:"kind"`
+	Actor  string `json:"actor"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // Open loads (or initializes) the store at dir/registry.json.

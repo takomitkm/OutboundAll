@@ -91,11 +91,11 @@ func (s *Store) RevokeInvitation(id, actor string) error {
 
 // RedeemResult is what a node gets from a successful redeem.
 type RedeemResult struct {
-	NodeID       string
+	NodeID string
 	// returned once; stored hashed
-	NodeSecret   string
+	NodeSecret string
 	// single-use, short-lived (headscale)
-	PreauthKey   string
+	PreauthKey string
 	// control plane URL the node registers against
 	Server       string
 	InvitationID string

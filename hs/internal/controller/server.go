@@ -21,11 +21,11 @@ type Options struct {
 	// hex sha256 of the admin token
 	AdminTokenSHA string
 	// control plane URL handed to nodes
-	Server        string
-	Headscale     HeadscaleAPI
+	Server    string
+	Headscale HeadscaleAPI
 	// redeem attempts per window per IP
-	RateLimit     int
-	RateWindow    time.Duration
+	RateLimit  int
+	RateWindow time.Duration
 }
 
 // Server is the hs-controller API.
