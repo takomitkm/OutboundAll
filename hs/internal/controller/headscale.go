@@ -23,11 +23,10 @@ type Headscale struct {
 	resolved bool
 }
 
+// Only Key is needed; the remaining fields vary in shape across headscale
+// versions (e.g. expiration may be null) and are ignored on purpose.
 type preauthKeyJSON struct {
-	Key        string    `json:"key"`
-	Used       bool      `json:"used"`
-	Expiration time.Time `json:"expiration"`
-	CreatedAt  time.Time `json:"created_at"`
+	Key string `json:"key"`
 }
 
 func (h *Headscale) cli(args ...string) (string, int, error) {
