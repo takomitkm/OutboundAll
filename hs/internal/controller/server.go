@@ -90,6 +90,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/nodes/resume", s.handleResume)
 	mux.HandleFunc("/api/v1/nodes", s.guard(s.handleNodes))
 	mux.HandleFunc("/api/v1/nodes/", s.guard(s.handleNodeOne))
+	mux.HandleFunc("/api/v1/audit", s.guard(s.handleAudit))
 	return mux
 }
 
@@ -280,6 +281,15 @@ func (s *Server) handleNodeOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"revoked": id})
+}
+
+// GET /api/v1/audit -- recent audit events (admin).
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpError(w, 405, "GET required")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"audit": s.store.Audit()})
 }
 
 func clientIP(r *http.Request) string {

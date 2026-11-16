@@ -207,7 +207,7 @@ log:
 	}
 
 	// invite create via CLI
-	out, code = runBin(t, ctlEnv, ctlBin, "invite", "create", "--label", "e2e")
+	out, code = runBin(t, ctlEnv, ctlBin, "invite", "create", "--api", "http://127.0.0.1:8801", "--label", "e2e")
 	if code != 0 {
 		t.Fatalf("invite create failed: %s", out)
 	}

@@ -14,13 +14,16 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/takomitkm/dialhome/hs/internal/controller"
@@ -104,6 +107,13 @@ func cmdInit([]string) int {
 	if err := s.SetAdminToken(hex.EncodeToString(sum[:])); err != nil {
 		fatal("store admin token: %v", err)
 	}
+	// CLI convenience: the same token in a 0600 file (the CLI is a thin API
+	// client -- single writer is the serve process; H6-class split state is
+	// what happens when two processes edit the registry directly).
+	tokPath := dir + string(os.PathSeparator) + "admin-token"
+	if err := os.WriteFile(tokPath, []byte(adminToken+"\n"), 0o600); err != nil {
+		fatal("write admin-token: %v", err)
+	}
 	fmt.Printf("hs-controller init ok: %s\n", dir)
 	fmt.Println("ADMIN-TOKEN (shown once, store keeps only its sha256):")
 	fmt.Println(adminToken)
@@ -140,46 +150,86 @@ func cmdServe(args []string) int {
 	return 0
 }
 
+// apiURL resolves the serve base URL for CLI calls.
+func apiURL(flagVal string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if v := os.Getenv("DIALHOME_HS_API"); v != "" {
+		return v
+	}
+	return "http://127.0.0.1:8800"
+}
+
+// adminTokenForCLI reads the token file written by init.
+func adminTokenForCLI() string {
+	p := dataDir() + string(os.PathSeparator) + "admin-token"
+	b, err := os.ReadFile(p)
+	if err != nil {
+		fatal("read admin token (%s): %v -- run `hs-controller init` first", p, err)
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// apiCall performs an authenticated CLI->serve request and prints the body.
+func apiCall(method, url, token string, body any) int {
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, url, rd)
+	if err != nil {
+		fatal("request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fatal("api %s %s: %v -- is hs-controller serve running?", method, url, err)
+	}
+	defer resp.Body.Close()
+	var buf strings.Builder
+	_, _ = io.Copy(&buf, resp.Body)
+	if resp.StatusCode >= 300 {
+		fmt.Fprintf(os.Stderr, "hs-controller: %s %s -> HTTP %d: %s", method, url, resp.StatusCode, buf.String())
+		return errs.ExitGeneric
+	}
+	fmt.Println(strings.TrimSpace(buf.String()))
+	return 0
+}
+
 func cmdInvite(args []string) int {
 	if len(args) == 0 {
 		usage()
 		return errs.ExitUsage
 	}
-	s := openStore()
+	api := ""
+	rest := args[1:]
+	if len(args) >= 2 && args[1] == "--api" && len(args) >= 3 {
+		api = args[2]
+		rest = args[3:]
+	}
+	tok := adminTokenForCLI()
 	switch args[0] {
 	case "create":
 		fs := flag.NewFlagSet("invite create", flag.ExitOnError)
 		label := fs.String("label", "", "node label")
 		profile := fs.String("profile", "default", "authorization profile")
 		ttl := fs.Int("ttl-hours", 24, "validity in hours")
-		if err := fs.Parse(args[1:]); err != nil {
+		if err := fs.Parse(rest); err != nil {
 			return errs.ExitUsage
 		}
-		code, inv, err := s.CreateInvitation(*label, *profile, time.Duration(*ttl)*time.Hour, "cli")
-		if err != nil {
-			fatal("create invitation: %v", err)
-		}
 		fmt.Println("INVITATION-CODE (one-time, shown once):")
-		fmt.Println(code)
-		fmt.Println("ID", inv.ID, "EXPIRES", inv.ExpiresAt.Format(time.RFC3339))
-		return 0
+		return apiCall("POST", apiURL(api)+"/api/v1/invitations", tok,
+			map[string]any{"label": *label, "profile": *profile, "ttl_hours": *ttl})
 	case "revoke":
-		if len(args) < 2 {
+		if len(rest) < 1 {
 			usage()
 			return errs.ExitUsage
 		}
-		if err := s.RevokeInvitation(args[1], "cli"); err != nil {
-			fatal("revoke: %v", err)
-		}
-		fmt.Println("REVOKED", args[1])
-		return 0
+		return apiCall("DELETE", apiURL(api)+"/api/v1/invitations/"+rest[0], tok, nil)
 	case "list":
-		_, invs := s.Snapshot()
-		for _, inv := range invs {
-			fmt.Printf("%s  %-9s  expires=%s  label=%s\n", inv.ID, inv.State,
-				inv.ExpiresAt.Format(time.RFC3339), inv.Label)
-		}
-		return 0
+		return apiCall("GET", apiURL(api)+"/api/v1/nodes", tok, nil)
 	default:
 		usage()
 		return errs.ExitUsage
@@ -191,26 +241,22 @@ func cmdNode(args []string) int {
 		usage()
 		return errs.ExitUsage
 	}
-	s := openStore()
+	api := ""
+	rest := args[1:]
+	if len(args) >= 2 && args[1] == "--api" && len(args) >= 3 {
+		api = args[2]
+		rest = args[3:]
+	}
+	tok := adminTokenForCLI()
 	switch args[0] {
 	case "list":
-		nodes, _ := s.Snapshot()
-		for _, n := range nodes {
-			fmt.Printf("%-24s %-9s profile=%s created=%s\n", n.ID, n.State, n.Profile,
-				n.CreatedAt.Format(time.RFC3339))
-		}
-		return 0
+		return apiCall("GET", apiURL(api)+"/api/v1/nodes", tok, nil)
 	case "revoke":
-		if len(args) < 2 {
+		if len(rest) < 1 {
 			usage()
 			return errs.ExitUsage
 		}
-		hs := controller.Headscale{BinPath: "/usr/bin/headscale", ConfigPath: "/etc/headscale/config.yaml"}
-		if err := s.RevokeNode(args[1], "cli", &hs); err != nil {
-			fatal("revoke node: %v", err)
-		}
-		fmt.Println("REVOKED", args[1])
-		return 0
+		return apiCall("POST", apiURL(api)+"/api/v1/nodes/"+rest[0]+"/revoke", tok, nil)
 	default:
 		usage()
 		return errs.ExitUsage
@@ -218,20 +264,14 @@ func cmdNode(args []string) int {
 }
 
 func cmdAudit(args []string) int {
-	s := openStore()
-	n := 20
-	if len(args) > 0 {
-		fmt.Sscanf(args[0], "%d", &n)
+	api := ""
+	rest := args
+	if len(args) >= 2 && args[0] == "--api" && len(args) >= 3 {
+		api = args[1]
+		rest = args[2:]
 	}
-	events := s.Audit()
-	if n > len(events) {
-		n = len(events)
-	}
-	for _, e := range events[len(events)-n:] {
-		b, _ := json.Marshal(e)
-		fmt.Println(string(b))
-	}
-	return 0
+	tok := adminTokenForCLI()
+	return apiCall("GET", apiURL(api)+"/api/v1/audit", tok, nil)
 }
 
 func listenAndServe(listen string, h http.Handler) error {
