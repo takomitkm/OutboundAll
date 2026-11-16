@@ -60,11 +60,21 @@ func Render(nodes []NodeView, owner string) string {
 	// deny-by-default baseline: an explicitly EMPTY grants array means
 	// "no data-plane reachability unless something else grants it".
 	// (Headscale docs: omitted/absent section == allow-all -- do NOT omit.)
-	b.WriteString(`  "grants": [],` + "\n")
+	//
+	// SSH needs BOTH gates: the ssh section authorizes the session, and the
+	// data plane (grants) must carry tcp/22 -- without a grant the peer is
+	// filtered out of the netmap entirely (CI-proven: status listed only the
+	// controller). Only SSH-enabled nodes get the grant; node-to-node stays
+	// ruleless.
 	if len(sshNodes) == 0 {
+		b.WriteString(`  "grants": [],` + "\n")
 		// no SSH-enabled nodes: no ssh rules either -- fully deny
 		b.WriteString(`  "ssh": []` + "\n")
 	} else {
+		b.WriteString(`  "grants": [` + "\n")
+		b.WriteString(`    // data plane: controller tag -> SSH-enabled nodes, tcp/22 only` + "\n")
+		b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "ip": ["tcp/22"] }` + "\n")
+		b.WriteString(`  ],` + "\n")
 		b.WriteString(`  "ssh": [` + "\n")
 		b.WriteString(`    // controller tag -> SSH-enabled node tags only` + "\n")
 		b.WriteString(`    { "action": "accept", "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "users": ["autogroup:nonroot"] }` + "\n")
