@@ -151,7 +151,26 @@ type hsUser struct {
 type hsNode struct {
 	ID       uint64 `json:"id"`
 	Hostname string `json:"hostname"`
-	Name     string `json:"name"` // 0.29 protobuf-json shape may use "name"
+	Name     string `json:"name"`  // 0.29 protobuf-json shape may use "name"
+	Online   bool   `json:"online"`
+}
+
+// dumpDir logs a directory listing (names + sizes) for state forensics.
+func dumpDir(t *testing.T, dir string, why string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Logf("dir %s unreadable (%s): %v", dir, why, err)
+		return
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			t.Logf("  %s (%s) [stat err]", e.Name(), why)
+			continue
+		}
+		t.Logf("  %s size=%d dir=%v (%s)", e.Name(), info.Size(), e.IsDir(), why)
+	}
 }
 
 func hsCLI(t *testing.T, ws string, args ...string) string {
