@@ -16,6 +16,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,11 +143,40 @@ func Open(dir string) (*Store, error) {
 	return s, nil
 }
 
+// lockWaitBounds bounds how long a mutate waits for the store lock. The
+// windows lockfile implementation serializes lock operations through a
+// package mutex and a blocking Acquire inside that mutex deadlocks every
+// other holder (LIVE-RED: TestRedeemAtomicUnderConcurrency 10-min timeout on
+// windows-latest) -- so the store never blocks: it retries TryAcquire.
+const (
+	storeLockWait    = 15 * time.Second
+	storeLockRetries = 60
+)
+
+// acquireStoreLock takes the store lock with bounded retries.
+func (s *Store) acquireStoreLock() (*lockfile.Lock, error) {
+	deadline := time.Now().Add(storeLockWait)
+	for i := 0; i < storeLockRetries; i++ {
+		lock, err := lockfile.TryAcquire(s.lockP)
+		if err == nil {
+			return lock, nil
+		}
+		if !errors.Is(err, lockfile.ErrLocked) {
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("store lock busy after %v (concurrent mutation?)", storeLockWait)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return nil, fmt.Errorf("store lock busy")
+}
+
 // mutate runs fn under the store lock, appends the audit event and persists.
-// The lock is taken once here -- flushLocked re-acquiring inside would
-// deadlock (flock is per open file description).
+// The lock is taken once here -- re-acquiring inside would deadlock (flock is
+// per open file description).
 func (s *Store) mutate(kind, actor, detail string, fn func() error) error {
-	lock, err := lockfile.Acquire(s.lockP)
+	lock, err := s.acquireStoreLock()
 	if err != nil {
 		return err
 	}
