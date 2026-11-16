@@ -83,7 +83,8 @@ func TestPhase3Chain(t *testing.T) {
 	hsBin := envBin(t, "HS_BIN")
 	sbBin := envBin(t, "SB_BIN")
 	// the controller/node CLI binaries are built from this repo
-	repo, err := filepath.Abs("../..")
+	// (this test lives at hs/internal/hstest -> three levels up is the root)
+	repo, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
