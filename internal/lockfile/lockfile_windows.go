@@ -4,7 +4,6 @@ package lockfile
 
 import (
 	"os"
-	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -23,11 +22,15 @@ const (
 // lockExclusive takes an exclusive byte-range lock over the whole file through
 // kernel32!LockFileEx. Pure stdlib (syscall + unsafe); golang.org/x/sys would be
 // a dependency for a single call.
-var lockMu sync.Mutex // LockFileEx handle use is not goroutine-safe per docs
-
+//
+// NO package-level mutex here: LockFileEx on distinct file handles is
+// thread-safe (kernel32 synchronous-call semantics), and serializing every
+// operation through one mutex turned any BLOCKING Acquire into a deadlock --
+// the second acquirer held the mutex while blocked inside LockFileEx, so the
+// first holder could not even reach UnlockFileEx (CI-proven: the concurrent
+// test hung 10 minutes on windows-latest; the unix path never had the mutex
+// and behaves correctly).
 func lockExclusive(f *os.File) error {
-	lockMu.Lock()
-	defer lockMu.Unlock()
 	h := syscall.Handle(f.Fd())
 	var ol syscall.Overlapped
 	r1, _, callErr := procLockFileEx.Call(
@@ -47,11 +50,9 @@ func lockExclusive(f *os.File) error {
 	return nil
 }
 
-// lockExclusiveNowait is the non-blocking variant: ERROR_IO_PENDING-style
-// failure (r1==0) when the lock is held.
+// lockExclusiveNowait is the non-blocking variant: fails (r1==0) when the
+// lock is held.
 func lockExclusiveNowait(f *os.File) error {
-	lockMu.Lock()
-	defer lockMu.Unlock()
 	h := syscall.Handle(f.Fd())
 	var ol syscall.Overlapped
 	r1, _, _ := procLockFileEx.Call(
@@ -72,8 +73,6 @@ func lockExclusiveNowait(f *os.File) error {
 }
 
 func unlock(f *os.File) error {
-	lockMu.Lock()
-	defer lockMu.Unlock()
 	h := syscall.Handle(f.Fd())
 	var ol syscall.Overlapped
 	r1, _, callErr := procLockFileEx.Call(
