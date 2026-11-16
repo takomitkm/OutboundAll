@@ -51,8 +51,21 @@ func TestPhase4Chain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// initial policy: deny-by-default (rendered before anything exists)
-	policy0 := "{\n  \"grants\": [],\n  \"ssh\": []\n}\n"
+	// initial policy: CONTROL EXPERIMENT -- tag declarations + allow-all ACL +
+	// tag-based ssh rule. If the controller still cannot reach node-c under
+	// allow-all, the failure is tagged-node visibility itself, not the
+	// deny-by-default grants shape.
+	policy0 := "{\n" +
+		"  \"tagOwners\": {\n" +
+		"    \"tag:dialhome-controller\": [\"ci@\"],\n" +
+		"    \"tag:dialhome-node\": [\"ci@\"],\n" +
+		"    \"tag:dialhome-node-ssh\": [\"ci@\"]\n" +
+		"  },\n" +
+		"  \"acls\": [ { \"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"*:*\"] } ],\n" +
+		"  \"ssh\": [\n" +
+		"    { \"action\": \"accept\", \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"  ]\n" +
+		"}\n"
 	if err := os.WriteFile(me("hs/policy.json"), []byte(policy0), 0o644); err != nil {
 		t.Fatal(err)
 	}
