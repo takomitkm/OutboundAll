@@ -63,7 +63,7 @@ func TestPhase4Chain(t *testing.T) {
 		"  },\n" +
 		"  \"acls\": [ { \"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"*:*\"] } ],\n" +
 		"  \"ssh\": [\n" +
-		"    { \"action\": \"accept\", \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"    { \"action\": \"accept\", \"src\": [\"100.64.0.1\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
 		"  ]\n" +
 		"}\n"
 	if err := os.WriteFile(me("hs/policy.json"), []byte(policy0), 0o644); err != nil {
@@ -152,10 +152,11 @@ log:
 		t.Fatal(err)
 	}
 
-	// ---- controller tailscale identity, TAGGED ----
-	// mint a tagged preauth key for the ctrl node directly via headscale
+	// ---- controller tailscale identity, PLAIN (control v2) ----
+	// Untagged: if the controller can now reach node-c (tagged), the broken
+	// variable is tagged-src matching, not the policy shape.
 	out, code := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"),
-		"preauthkeys", "create", "--user", "1", "--tags", "tag:dialhome-controller", "-o", "json")
+		"preauthkeys", "create", "--user", "1", "-o", "json")
 	if code != 0 {
 		t.Fatalf("ctrl preauthkey failed: %s", out)
 	}
