@@ -151,6 +151,7 @@ type hsUser struct {
 type hsNode struct {
 	ID       uint64 `json:"id"`
 	Hostname string `json:"hostname"`
+	Name     string `json:"name"` // 0.29 protobuf-json shape may use "name"
 }
 
 func hsCLI(t *testing.T, ws string, args ...string) string {

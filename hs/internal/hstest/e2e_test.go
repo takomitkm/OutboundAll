@@ -193,7 +193,7 @@ log:
 	if err := waitForErr(120*time.Second, "node-a registration in headscale", func() error {
 		nodes := hsNodesSafe(t, ws)
 		for _, n := range nodes {
-			if strings.HasPrefix(n.Hostname, "node-a") {
+			if strings.HasPrefix(n.Hostname, "node-a") || strings.HasPrefix(n.Name, "node-a") {
 				return nil
 			}
 		}
@@ -201,6 +201,10 @@ log:
 	}); err != nil {
 		dumpLog(t, hs, "headscale during registration wait")
 		dumpLog(t, sbA, "sing-box during registration wait")
+		if raw, code, _ := runCmd(t, 30*time.Second, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "list", "-o", "json"}); code == 0 {
+			t.Logf("raw nodes list at timeout:
+%s", raw)
+		}
 		t.Fatal(err)
 	}
 	t.Logf("GATE G2: PASS -- sing-box endpoint registered over http:// control_url")
@@ -208,7 +212,7 @@ log:
 	nodes := hsNodesSafe(t, ws)
 	nodeAID := uint64(0)
 	for _, n := range nodes {
-		if strings.HasPrefix(n.Hostname, "node-a") {
+		if strings.HasPrefix(n.Hostname, "node-a") || strings.HasPrefix(n.Name, "node-a") {
 			nodeAID = n.ID
 		}
 	}
@@ -229,7 +233,7 @@ log:
 		nodes := hsNodesSafe(t, ws)
 		count := 0
 		for _, n := range nodes {
-			if strings.HasPrefix(n.Hostname, "node-a") {
+			if strings.HasPrefix(n.Hostname, "node-a") || strings.HasPrefix(n.Name, "node-a") {
 				count++
 				if n.ID != nodeAID {
 					return fmt.Errorf("node-a came back with a NEW id (%d -> %d)", nodeAID, n.ID)
@@ -273,7 +277,7 @@ log:
 	}
 	if err := waitForErr(60*time.Second, "ctrl node visible in headscale", func() error {
 		for _, n := range hsNodesSafe(t, ws) {
-			if strings.HasPrefix(n.Hostname, "ctrl") {
+			if strings.HasPrefix(n.Hostname, "ctrl") || strings.HasPrefix(n.Name, "ctrl") {
 				return nil
 			}
 		}
