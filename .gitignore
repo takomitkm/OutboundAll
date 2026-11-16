@@ -7,3 +7,4 @@ secrets/
 *.err
 .tmp/
 dist/
+.e2e-deps/

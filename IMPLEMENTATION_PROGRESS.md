@@ -16,7 +16,8 @@
 | 2026-11-17 | 0b7be19 | PLAN.md（终版执行计划：调研结论、D1–D8 偏差、G1–G5 决策门、Step 0–14、测试设计） |
 | 2026-11-17 | e0388c1 | CI 修复 #1：Windows runner `core.autocrlf=true` → checkout CRLF → gofmt 全红。9 次历史 run 全败的根因。修复后 windows vet+test 首次绿 |
 | 2026-11-17 | df89ab2 | CI 修复 #2：smoke-linux 首次真正运行即暴露 `$?` 被 echo 消费的断言 bug（产品 exit=2 正确，断言却测 echo 的 0）→ rc 变量修复。同 commit：Phase 0 两份分析文档 |
-| 2026-11-17 | （本 commit） | Phase 1：docs/hs/ARCHITECTURE.md + SECURITY_MODEL.md + THREAT_MODEL.md + ADR 001–006 + 本台账 |
+| 2026-11-17 | 1999e35 | Phase 1：docs/hs/ARCHITECTURE.md + SECURITY_MODEL.md + THREAT_MODEL.md + ADR 001–006 + 本台账（df89ab2 CI 全绿实证后推送） |
+| 2026-11-17 | （本 commit） | Phase 1b：hs/scripts/e2e-deps.sh（三件钉版本+sha256 下载）+ hs/internal/hstest（G2/G5/G4p 硬门 + G1/G3 观察的 E2E 链）+ CI hs-e2e job |
 
 ## 2. 关键事实与决策（防止后面忘）
 
