@@ -75,5 +75,3 @@ func DarwinPlist(hsNodeBin string, logDir string) string {
 </plist>
 `, hsNodeBin, logDir, logDir)
 }
-
-
