@@ -158,8 +158,9 @@ type hsNode struct {
 	ID       uint64 `json:"id"`
 	Hostname string `json:"hostname"`
 	// 0.29 protobuf-json shape may use "name" instead of "hostname"
-	Name   string `json:"name"`
-	Online bool   `json:"online"`
+	Name   string   `json:"name"`
+	Online bool     `json:"online"`
+	IPs    []string `json:"ipAddresses"`
 }
 
 // dumpDir logs a directory listing (names + sizes) for state forensics.

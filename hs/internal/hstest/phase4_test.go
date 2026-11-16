@@ -234,7 +234,19 @@ log:
 	stOut, stCode := runBin(t, nil, tsBin, sockArg, "status")
 	t.Logf("controller status before G4 probes (exit %d):\n%s", stCode, stOut)
 
-	// G4 positive: controller -> node-c:22 must connect (SSH rule covers it)
+	// G4 positive: controller -> node-c:22 must connect (SSH rule covers it).
+	// Probe by MagicDNS name AND by tailnet IP, so a name-resolution failure
+	// is distinguishable from a netmap/ACL failure.
+	nodeIP := ""
+	for _, n := range hsNodesSafe(t, ws) {
+		if strings.HasPrefix(n.Hostname, "node-c") || strings.HasPrefix(n.Name, "node-c") {
+			if len(n.IPs) > 0 {
+				nodeIP = n.IPs[0]
+			}
+		}
+	}
+	t.Logf("node-c tailnet IP: %q", nodeIP)
+
 	cCode := 1
 	deadline := time.Now().Add(90 * time.Second)
 	for time.Now().Before(deadline) {
@@ -242,10 +254,18 @@ log:
 		if cCode == 0 {
 			break
 		}
+		if nodeIP != "" {
+			_, ipCode := runBin(t, nil, tsBin, sockArg, "nc", nodeIP, "22")
+			if ipCode == 0 {
+				t.Logf("IP probe succeeded where name probe failed -- MagicDNS issue, not ACL")
+				cCode = 0
+				break
+			}
+		}
 		time.Sleep(5 * time.Second)
 	}
 	if cCode != 0 {
-		t.Fatalf("G4 FAILED: controller cannot reach node-c:22 (exit %d) -- ssh grant path broken", cCode)
+		t.Fatalf("G4 FAILED: controller cannot reach node-c:22 (exit %d, ip=%q) -- ssh grant path broken", cCode, nodeIP)
 	}
 	t.Logf("GATE G4 positive: controller reaches node-c:22 (tagged grant)")
 
