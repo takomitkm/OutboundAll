@@ -294,6 +294,20 @@ log:
 		if b, rerr := os.ReadFile(me("hs/policy.json")); rerr == nil {
 			t.Logf("RAW live policy file:\n%s", b)
 		}
+		// headscale debug endpoints (served on the metrics listener) expose the
+		// internals: filter rules, NodeStore adjacency, and per-node map
+		// responses. Truncate each to keep the CI log readable.
+		for _, ep := range []string{"filter", "nodestore", "policy-manager", "mapresponses"} {
+			resp, err := http.Get("http://127.0.0.1:9090/debug/" + ep)
+			if err != nil {
+				t.Logf("RAW debug/%s: fetch error %v", ep, err)
+				continue
+			}
+			body := make([]byte, 3500)
+			n, _ := resp.Body.Read(body)
+			resp.Body.Close()
+			t.Logf("RAW debug/%s (HTTP %d, first %d bytes):\n%s", ep, resp.StatusCode, n, string(body[:n]))
+		}
 		t.Fatalf("G4 FAILED: controller cannot reach node-c:22 (exit %d, ip=%q) -- ssh grant path broken", cCode, nodeIP)
 	}
 	t.Logf("GATE G4 positive: controller reaches node-c:22 (tagged grant)")
