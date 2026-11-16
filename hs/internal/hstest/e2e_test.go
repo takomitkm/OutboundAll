@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -178,6 +179,9 @@ log:
 }`, authKey, me("node-a/state"))
 		}
 		path := me("node-a/config.json")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(path, []byte(sbCfg), 0o644); err != nil {
 			t.Fatal(err)
 		}
