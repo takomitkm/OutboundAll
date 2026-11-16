@@ -9,10 +9,11 @@
 Go 单二进制，三个角色同仓：`node` / `controller` / `relay`。
 
 > **分支说明**
-> - `main` — 当前版本：Go 重构版（本文件所述）。
-> - `pwsh` — **存档分支**：旧 PowerShell + Bash + Python 版（原 `main`，末提交 `46b3468`，
+> - `main` — **当前开发分支**：Go 重构版（本文件所述）。
+> - `go-rewrite` — **存档分支**：Go 重构完成时的快照（`0b78c37`，Phase 0–10 验收 +
+>   2026-11-15 安全审评修复）。只读参考，不再更新。
+> - `pwsh` — **存档分支**：旧 PowerShell + Bash + Python 版（末提交 `46b3468`，
 >   另打不可变 tag `pwsh-legacy-final`）。仅作历史参考，新部署请勿使用。
-> - `go-refactor` — 重构工作分支，内容与 `main` 相同，保留以备追溯。
 
 ```
    节点（NAT 后的 Windows / Linux）        relay（Linux，唯一有公网口）        你的工作站
