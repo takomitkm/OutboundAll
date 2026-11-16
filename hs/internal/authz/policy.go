@@ -72,8 +72,11 @@ func Render(nodes []NodeView, owner string) string {
 		b.WriteString(`  "ssh": []` + "\n")
 	} else {
 		b.WriteString(`  "grants": [` + "\n")
-		b.WriteString(`    // data plane: controller tag -> SSH-enabled nodes, tcp/22 only` + "\n")
-		b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "ip": ["tcp/22"] }` + "\n")
+		b.WriteString(`    // headscale grants ProtocolPort syntax is proto:PORT with a COLON
+		// ("tcp:22"); the slash form ("tcp/22") is Tailscale-ACL dst syntax
+		// and fails to parse (CI-proven: "invalid first integer").
+		// data plane: controller tag -> SSH-enabled nodes, tcp:22 only` + "\n")
+		b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "ip": ["tcp:22"] }` + "\n")
 		b.WriteString(`  ],` + "\n")
 		b.WriteString(`  "ssh": [` + "\n")
 		b.WriteString(`    // controller tag -> SSH-enabled node tags only` + "\n")
