@@ -205,10 +205,11 @@ func TestStoreNeverHoldsPlaintextSecrets(t *testing.T) {
 // ---- HTTP server tests ----
 
 type srvFixture struct {
-	ts    *httptest.Server
-	code  string
-	sec   string
-	store *Store
+	ts       *httptest.Server
+	code     string
+	sec      string
+	store    *Store
+	adminTok string
 }
 
 func newSrv(t *testing.T) *srvFixture {
@@ -228,8 +229,7 @@ func newSrv(t *testing.T) *srvFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = adminTok
-	return &srvFixture{ts: ts, code: code, store: s}
+	return &srvFixture{ts: ts, code: code, store: s, adminTok: adminTok}
 }
 
 func postJSON(t *testing.T, url string, headers map[string]string, body any) (*http.Response, map[string]any) {
@@ -340,8 +340,7 @@ func TestResumeHTTP(t *testing.T) {
 // N-srv-5: revoke via API marks the node and blocks resume (N6'/N7').
 func TestRevokeHTTP(t *testing.T) {
 	f := newSrv(t)
-	adminTok, _ := RandomToken()
-	hdr := adminHeader(adminTok)
+	hdr := adminHeader(f.adminTok)
 	resp, out := postJSON(t, f.ts.URL+"/api/v1/enroll/redeem", nil, map[string]string{"code": f.code, "hostname": "win-z"})
 	if resp.StatusCode != 201 {
 		t.Fatalf("redeem = %d", resp.StatusCode)
