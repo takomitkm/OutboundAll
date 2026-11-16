@@ -160,6 +160,7 @@ log:
     "hostname": "node-a",
     "state_directory": %q,
     "system_interface": false,
+    "listen_port": 42421,
     "ssh_server": { "enabled": true }
   }]
 }`, me("node-a/state"))
@@ -174,6 +175,7 @@ log:
     "auth_key": %q,
     "state_directory": %q,
     "system_interface": false,
+    "listen_port": 42421,
     "ssh_server": { "enabled": true }
   }]
 }`, authKey, me("node-a/state"))
@@ -253,7 +255,7 @@ log:
 	t.Logf("GATE G5: PASS -- identity persisted across restart (node id %d, no duplicates)", nodeAID)
 
 	// -- controller: official tailscaled (userspace networking, no root)
-	startProc(t, "tailscaled.log", []string{tsdBin,
+	tsd := startProc(t, "tailscaled.log", []string{tsdBin,
 		"--tun=userspace-networking",
 		"--statedir=" + me("ctrl"),
 		"--socket=" + me("ctrl/ts.sock"),
@@ -286,11 +288,18 @@ log:
 	}
 	t.Logf("controller (official tailscale client, pinned 1.104.7) registered")
 
+	// -- path diagnostics: which route does the controller see to node-a?
+	stOut, stCode, _ := runCmd(t, 30*time.Second, []string{tsBin, sockArg, "status"})
+	t.Logf("controller status (exit %d):\n%s", stCode, stOut)
+	pingOut, pingCode, _ := runCmd(t, 60*time.Second, []string{tsBin, sockArg, "ping", "--c=4", "--timeout=5s", "node-a"})
+	t.Logf("tailscale ping node-a (exit %d):\n%s", pingCode, pingOut)
+
 	// -- G4p: tailscale ssh controller -> node-a (policy-governed)
 	sshOut, sshCode, sshErr := runCmd(t, 90*time.Second, []string{tsBin, sockArg,
 		"ssh", username + "@node-a", "echo hs-e2e-ssh-ok && whoami"})
 	if sshCode != 0 || !strings.Contains(sshOut, "hs-e2e-ssh-ok") {
 		dumpLog(t, sbA2, "sing-box during ssh attempt")
+		dumpLog(t, tsd, "tailscaled during ssh attempt")
 		t.Fatalf("G4p FAILED: tailscale ssh exit=%d err=%v out=%q", sshCode, sshErr, sshOut)
 	}
 	t.Logf("GATE G4p: PASS -- controller ssh into node-a worked; output=%q", strings.TrimSpace(sshOut))
