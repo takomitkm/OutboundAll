@@ -9,6 +9,7 @@
 package hstest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -214,8 +215,19 @@ log:
 	var inviteCode string
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "INVITATION-CODE (one-time, shown once):" && i+1 < len(lines) {
-			inviteCode = strings.TrimSpace(lines[i+1])
+		if strings.TrimSpace(line) != "INVITATION-CODE (one-time, shown once):" {
+			continue
+		}
+		// apiCall prints the serve's JSON body on the next line(s)
+		for _, l2 := range lines[i+1:] {
+			if !strings.Contains(l2, "\"code\"") {
+				continue
+			}
+			var parsed map[string]any
+			if err := json.Unmarshal([]byte(strings.TrimSpace(l2)), &parsed); err == nil {
+				inviteCode, _ = parsed["code"].(string)
+				break
+			}
 		}
 	}
 	if inviteCode == "" {
