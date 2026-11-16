@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"time"
 )
 
 // Headscale drives the local headscale binary.
