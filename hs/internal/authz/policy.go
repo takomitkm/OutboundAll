@@ -53,7 +53,7 @@ func Render(nodes []NodeView, owner string) string {
 	// login name does not naturally contain one (types.go isUser = Contains
 	// "@"; resolveUser trims the suffix before matching the user name).
 	b.WriteString(`  "tagOwners": {` + "\n")
-	b.WriteString(`    ` + quote(owner+"@") + `: [` + quote(owner+"@") + `],` + "\n")
+	b.WriteString(`    ` + quote(TagController) + `: [` + quote(owner+"@") + `],` + "\n")
 	b.WriteString(`    ` + quote(TagNode) + `: [` + quote(owner+"@") + `],` + "\n")
 	b.WriteString(`    ` + quote(TagNodeSSH) + `: [` + quote(owner+"@") + `]` + "\n")
 	b.WriteString(`  },` + "\n")
