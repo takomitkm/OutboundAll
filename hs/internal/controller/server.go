@@ -209,10 +209,10 @@ func (s *Server) handleRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, map[string]any{
-		"node_id":      res.NodeID,
-		"node_secret":  res.NodeSecret, // returned once over this response only
-		"preauth_key":  res.PreauthKey,
-		"server":       res.Server,
+		"node_id":       res.NodeID,
+		"node_secret":   res.NodeSecret, // returned once over this response only
+		"preauth_key":   res.PreauthKey,
+		"server":        res.Server,
 		"invitation_id": res.InvitationID,
 	})
 }
@@ -225,7 +225,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ip := clientIP(r)
-	if !s.rateOK("resume:"+ip) {
+	if !s.rateOK("resume:" + ip) {
 		httpError(w, 429, ErrRateLimited.Error())
 		return
 	}

@@ -56,9 +56,9 @@ type HeadscaleSettings struct {
 type NodeState string
 
 const (
-	NodePending  NodeState = "pending"  // record created at redeem; node not yet seen
-	NodeActive   NodeState = "active"   // node completed first contact (resume)
-	NodeRevoked  NodeState = "revoked"  // tombstone kept for audit
+	NodePending NodeState = "pending" // record created at redeem; node not yet seen
+	NodeActive  NodeState = "active"  // node completed first contact (resume)
+	NodeRevoked NodeState = "revoked" // tombstone kept for audit
 )
 
 // NodeRecord is one enrolled machine.
@@ -83,8 +83,8 @@ type InvitationState string
 const (
 	InvCreated  InvitationState = "created"
 	InvRedeemed InvitationState = "redeemed"
-	InvUsed     InvitationState = "used"   // node completed first contact
-	InvFailed   InvitationState = "failed" // expired or revoked before use
+	InvUsed     InvitationState = "used"    // node completed first contact
+	InvFailed   InvitationState = "failed"  // expired or revoked before use
 )
 
 // Invitation is a one-time enrollment invitation.
