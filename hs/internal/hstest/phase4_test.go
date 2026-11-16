@@ -279,6 +279,19 @@ log:
 		time.Sleep(5 * time.Second)
 	}
 	if cCode != 0 {
+		// dump every layer before dying: raw headscale nodes JSON (does node-c
+		// have an IP at all?), the client's peer view, and the live policy file
+		if raw, code := runBin(t, 30*time.Second, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "list", "-o", "json"}); code == 0 {
+			t.Logf("RAW nodes list at failure:\n%s", raw)
+		}
+		js, jsCode := runBin(t, 30*time.Second, []string{tsBin, sockArg, "status", "--json"})
+		if jsCode == 0 && len(js) > 6000 {
+			js = js[:6000]
+		}
+		t.Logf("RAW tailscale status --json (truncated, exit %d):\n%s", jsCode, js)
+		if b, rerr := os.ReadFile(me("hs/policy.json")); rerr == nil {
+			t.Logf("RAW live policy file:\n%s", b)
+		}
 		t.Fatalf("G4 FAILED: controller cannot reach node-c:22 (exit %d, ip=%q) -- ssh grant path broken", cCode, nodeIP)
 	}
 	t.Logf("GATE G4 positive: controller reaches node-c:22 (tagged grant)")
