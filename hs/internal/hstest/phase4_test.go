@@ -162,15 +162,16 @@ log:
 	t.Logf("controller identity registered (tag:dialhome-controller)")
 
 	// ---- two nodes: node-b (no-ssh) and node-c (default ssh) ----
-	nodeHome := me("node-home")
-	nodeEnv := []string{
-		"HOME=" + nodeHome,
-		"XDG_CONFIG_HOME=" + nodeHome + "/.config",
-		"DIALHOME_HS_SINGBOX=" + sbBin,
-		"DIALHOME_HS_TEST_ALLOW_HTTP=1",
-	}
-
+	// each node gets its OWN home (state dir + instance lock are per-layout;
+	// sharing one home would deadlock the second supervisor on hs-node.lock)
 	enroll := func(hostname, profile string) {
+		nodeHome := me("node-home-" + hostname)
+		nodeEnv := []string{
+			"HOME=" + nodeHome,
+			"XDG_CONFIG_HOME=" + nodeHome + "/.config",
+			"DIALHOME_HS_SINGBOX=" + sbBin,
+			"DIALHOME_HS_TEST_ALLOW_HTTP=1",
+		}
 		out, code := runBin(t, ctlEnv, ctlBin, "invite", "create", "--api", "http://127.0.0.1:8802",
 			"--label", hostname, "--profile", profile)
 		if code != 0 {
