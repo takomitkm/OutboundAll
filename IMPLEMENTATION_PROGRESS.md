@@ -5,9 +5,9 @@
 
 ## 当前状态
 
-- **已完成**：Phase 0（全量调研 + 依赖核实）→ PLAN.md 终版 → analysis/ 两份产出 → docs/hs/ 架构/安全/威胁 + ADR 001–006。
-- **当前阶段**：Phase 1 收尾 → 下一步 Phase 1b（CI 集成骨架，G1–G5 实证）。
-- **在跑 CI**：见 §3 表。
+- **已完成**：Phase 0/1/1b（架构冻结 + 决策门实证）/ **Phase 2**（hs-node 运行时：config 不变式、布局、sing-box 钉定下载、进程 supervisor、自启动、单实例锁；单元测试双 OS 绿）。
+- **当前阶段**：Phase 3（邀请服务 + 登记 + resume-key 通道）。
+- **新增共享件**：internal/lockfile.TryAcquire（非阻塞锁；LIVE-RED 教训：阻塞锁使「another supervisor」路径永不触发）。
 
 ## 1. 已完成工作
 
@@ -41,6 +41,8 @@
 | 0b7be19 | ✅ | ❌ | ⏭ | ⏭ | CRLF 根因（历史遗留） |
 | e0388c1 | ✅ | ✅ | ❌ | 🔄 | smoke 首跑暴露 $? bug |
 | df89ab2 | ✅ | ✅ | ✅ | ✅ | **全绿（本项目 CI 首次全绿）** |
+| 95f5300→6ed1277 | ✅ | ✅→红×3轮 | ✅ | ⏭ | Phase 2 单测上线：gofmt 对齐（gofmt 真实规则=注释/空行断开对齐run）、NewChannel 名、CREATE_NO_WINDOW 字面量、**lockfile 阻塞锁 LIVE-RED**（第二次实例挂死 10min→加 TryAcquire）、%q 引用、梯语义误读 |
+| 8df49f8 | ✅ | ✅ | ✅ | ✅ | **Phase 2 全绿（双 OS 单测 + e2e + smoke + build）** |
 | 7a0f3af | ✅ | ✅ | ✅ | ✅ | e2e 假绿（管道吞退出码）——测试实际红 |
 | e4deb55/82720c1 | ✅ | ✅ | ✅ | ✅/— | e2e 红（policy `*` / mkdir）——pipefail 后诚实红 |
 | 128b5f4 | ✅ | ✅ | ✅ | ✅ | **hs e2e 全绿（G2/G4p/G5 硬门过）** |
