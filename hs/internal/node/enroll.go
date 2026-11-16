@@ -1,6 +1,7 @@
 // enroll.go -- the node-side enrollment client (Phase 3b).
 //
 // Flow (ADR-002):
+//
 //	hs-node enroll --code CODE --controller URL [--hostname NAME]
 //	  1. POST /api/v1/enroll/redeem {code, hostname}  (rate-limited endpoint)
 //	  2. persist config.json (no secrets) + node-secret file (hardened)
