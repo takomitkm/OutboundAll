@@ -202,8 +202,7 @@ log:
 		dumpLog(t, hs, "headscale during registration wait")
 		dumpLog(t, sbA, "sing-box during registration wait")
 		if raw, code, _ := runCmd(t, 30*time.Second, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "list", "-o", "json"}); code == 0 {
-			t.Logf("raw nodes list at timeout:
-%s", raw)
+			t.Logf("raw nodes list at timeout:\n%s", raw)
 		}
 		t.Fatal(err)
 	}
