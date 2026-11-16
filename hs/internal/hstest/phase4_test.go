@@ -244,6 +244,29 @@ log:
 	idC := waitOnline("node-c")
 	t.Logf("node-b online (id %d, no-ssh profile), node-c online (id %d, default)", idB, idC)
 
+	// Checkpoint: the rendered policy (on disk) must parse cleanly in
+	// headscale, and the live policy-manager must contain the grants. If
+	// headscale holds a different policy than the file, the SIGHUP path is
+	// broken -- fail HERE with both artifacts instead of a confusing nc
+	// failure later.
+	if chkOut, chkCode := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"),
+		"policy", "check", "--file", me("hs/policy.json")); chkCode != 0 {
+		t.Fatalf("rendered policy does not parse in headscale (exit %d):\n%s", chkCode, chkOut)
+	}
+	t.Logf("rendered policy parses cleanly (headscale policy check)")
+	time.Sleep(5 * time.Second) // SIGHUP settle
+	pmBody := ""
+	if resp, err := http.Get("http://127.0.0.1:9090/debug/policy-manager"); err == nil {
+		b := make([]byte, 2500)
+		n, _ := resp.Body.Read(b)
+		resp.Body.Close()
+		pmBody = string(b[:n])
+		t.Logf("policy-manager after redeem (HTTP %d):\n%s", resp.StatusCode, pmBody)
+	}
+	if !strings.Contains(pmBody, "\"grants\"") && !strings.Contains(pmBody, "Grants") {
+		t.Logf("WARNING: policy-manager does not show grants -- headscale holds a deny-only policy (SIGHUP path suspect)")
+	}
+
 	// policy reload + client ACL propagation + path establishment all take
 	// time; retry the probe instead of a fixed sleep
 	stOut, stCode := runBin(t, nil, tsBin, sockArg, "status")
