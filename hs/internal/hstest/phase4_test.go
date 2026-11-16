@@ -338,18 +338,28 @@ log:
 	}
 	t.Logf("GATE G4 positive: controller reaches node-c:22 (tagged grant)")
 
-	// G4 negative: controller -> node-b:22 must NOT connect (no covering rule;
-	// the connection must be refused/blocked by the tailnet ACL, not served)
-	nbOut, nbCode := runBin(t, nil, tsBin, sockArg, "nc", "--timeout=5s", "node-b", "22")
+	// G4 negative: controller -> node-b:22 must NOT serve SSH (no covering
+	// rule). ACL-blocked dials black-hole rather than refuse, so wrap the
+	// probe in coreutils timeout: 124 = blocked (good), 0 with an SSH banner
+	// = the deny-by-default is broken. tailscale nc has no -timeout flag
+	// (CI-proven: "flag provided but not defined").
+	nbOut, nbCode := runBin(t, nil, "timeout", "5", tsBin, sockArg, "nc", "node-b", "22")
 	if nbCode == 0 && strings.Contains(nbOut, "SSH-2.0") {
 		t.Fatalf("G4 FAILED: node-b (no-ssh profile) answered SSH -- deny-by-default broken")
 	}
 	t.Logf("GATE G4 negative: node-b:22 not reachable (exit %d, out=%q) -- deny-by-default holds", nbCode, strings.TrimSpace(nbOut))
 
-	// policy file on disk still shows the deny baseline
+	// policy file on disk keeps the deny-by-default SHAPE: grants scope ONLY
+	// the ssh-enabled tag (with node-c enrolled the grants array is non-empty;
+	// the empty-array baseline applies when no ssh node exists). node-b
+	// (no-ssh profile) must never appear as a grant destination.
 	if b, err := os.ReadFile(me("hs/policy.json")); err == nil {
-		if !strings.Contains(string(b), "\"grants\": []") {
-			t.Fatalf("policy file lost the deny-by-default baseline:\n%s", b)
+		body := string(b)
+		if !strings.Contains(body, TagNodeSSH) {
+			t.Fatalf("policy file lost the ssh-enabled tag scoping:\n%s", body)
+		}
+		if strings.Contains(body, `"dst": ["tag:dialhome-node"]`) {
+			t.Fatalf("policy file grants node-b (no-ssh profile) data-plane access:\n%s", body)
 		}
 	}
 	t.Logf("==== PHASE 4 SUMMARY ====")
