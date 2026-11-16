@@ -229,11 +229,22 @@ log:
 	idC := waitOnline("node-c")
 	t.Logf("node-b online (id %d, no-ssh profile), node-c online (id %d, default)", idB, idC)
 
-	// give the policy reload + client propagation a moment
-	time.Sleep(10 * time.Second)
+	// policy reload + client ACL propagation + path establishment all take
+	// time; retry the probe instead of a fixed sleep
+	stOut, stCode, _ := runBin(t, nil, tsBin, sockArg, "status")
+	t.Logf("controller status before G4 probes (exit %d):
+%s", stCode, stOut)
 
 	// G4 positive: controller -> node-c:22 must connect (SSH rule covers it)
-	_, cCode := runBin(t, nil, tsBin, sockArg, "nc", "node-c", "22")
+	cCode := 1
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) {
+		_, cCode = runBin(t, nil, tsBin, sockArg, "nc", "node-c", "22")
+		if cCode == 0 {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
 	if cCode != 0 {
 		t.Fatalf("G4 FAILED: controller cannot reach node-c:22 (exit %d) -- ssh grant path broken", cCode)
 	}
