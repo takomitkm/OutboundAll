@@ -2,7 +2,11 @@
 // (unix flock, Windows LockFileEx) -- no third-party dependency.
 package lockfile
 
-import "os"
+import (
+	"errors"
+	"os"
+	"syscall"
+)
 
 // Lock holds an exclusive advisory lock on a file for the life of the handle.
 type Lock struct {
@@ -20,6 +24,30 @@ func Acquire(path string) (*Lock, error) {
 	}
 	if err := lockExclusive(f); err != nil {
 		f.Close()
+		return nil, err
+	}
+	return &Lock{f: f}, nil
+}
+
+// ErrLocked is returned by TryAcquire when another holder owns the file.
+var ErrLocked = errors.New("lock held by another process")
+
+// TryAcquire is the non-blocking Acquire: ErrLocked instead of waiting when
+// the lock is already held (single-instance supervisors need this -- a
+// blocking Acquire makes the second instance hang forever).
+func TryAcquire(path string) (*Lock, error) {
+	if err := os.MkdirAll(dirOf(path), 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockExclusiveNowait(f); err != nil {
+		f.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return nil, ErrLocked
+		}
 		return nil, err
 	}
 	return &Lock{f: f}, nil

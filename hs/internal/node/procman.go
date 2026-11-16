@@ -159,9 +159,11 @@ func (m *Manager) Status() string {
 }
 
 // AcquireInstanceLock takes the single-instance lock for a node data dir.
-// The caller must Release() it before exit.
+// Non-blocking: returns lockfile.ErrLocked when another supervisor already
+// owns the node (the caller prints that and exits, matching the reference's
+// "another supervisor owns this node" behavior). Caller must Release().
 func AcquireInstanceLock(stateDir string) (*lockfile.Lock, error) {
-	return lockfile.Acquire(stateDir + string(os.PathSeparator) + "hs-node.lock")
+	return lockfile.TryAcquire(stateDir + string(os.PathSeparator) + "hs-node.lock")
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

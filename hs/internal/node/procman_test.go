@@ -21,8 +21,9 @@ func TestLadderSequence(t *testing.T) {
 		5 * time.Second, 10 * time.Second, 20 * time.Second,
 		40 * time.Second, 60 * time.Second, 60 * time.Second,
 		60 * time.Second, 60 * time.Second, 60 * time.Second,
-		60 * time.Second,   // 10th consecutive failure ...
-		3600 * time.Second, // ... >= FailsToHourly -> hourly
+		// the 10th consecutive failure is the >=FailsToHourly jump itself
+		3600 * time.Second,
+		3600 * time.Second,
 		3600 * time.Second,
 	}
 	for i := range want {

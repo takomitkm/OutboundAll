@@ -15,8 +15,9 @@ var (
 )
 
 const (
-	lockExclusiveFlag = 0x2
-	unlockFlag        = 0x1
+	lockExclusiveFlag   = 0x2
+	unlockFlag          = 0x1
+	lockFailImmediately = 0x1
 )
 
 // lockExclusive takes an exclusive byte-range lock over the whole file through
@@ -42,6 +43,30 @@ func lockExclusive(f *os.File) error {
 			return callErr
 		}
 		return syscall.EACCES
+	}
+	return nil
+}
+
+// lockExclusiveNowait is the non-blocking variant: ERROR_IO_PENDING-style
+// failure (r1==0) when the lock is held.
+func lockExclusiveNowait(f *os.File) error {
+	lockMu.Lock()
+	defer lockMu.Unlock()
+	h := syscall.Handle(f.Fd())
+	var ol syscall.Overlapped
+	r1, _, callErr := procLockFileEx.Call(
+		uintptr(h),
+		uintptr(lockExclusiveFlag|lockFailImmediately),
+		0,
+		uintptr(0xFFFFFFFF),
+		uintptr(0xFFFFFFFF),
+		uintptr(unsafe.Pointer(&ol)),
+	)
+	if r1 == 0 {
+		// LockFileEx with FAIL_IMMEDIATELY fails with ERROR_LOCK_VIOLATION on
+		// contention; rarer failures (bad handle, disk) land here too, which
+		// is the safe direction for a single-instance guard.
+		return ErrLocked
 	}
 	return nil
 }

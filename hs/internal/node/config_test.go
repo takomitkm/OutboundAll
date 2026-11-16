@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,8 +115,12 @@ func TestConfigRejectsWrongVersion(t *testing.T) {
 	dir := t.TempDir()
 	c := validConfig()
 	c.ConfigVersion = 99
-	if err := c.Save(dir); err != nil {
-		t.Fatalf("save: %v", err)
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), b, 0o600); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := Load(dir); err == nil {
 		t.Fatal("config_version 99 accepted")

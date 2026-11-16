@@ -7,15 +7,23 @@
 // All mechanisms are per-user, never elevated (RUNBOOK 无提权实测矩阵).
 package node
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // AutostartKey is the registry value / unit name across platforms.
 const AutostartKey = "hs-node"
 
-// RunCommand renders the command line the autostart entry points at.
-// Pure function so tests can assert it byte-for-byte on every platform.
+// RunCommand renders the command line the autostart entry points at:
+// plain double quotes around the binary (Go %q would escape backslashes,
+// which Windows command lines do not want). Panics on embedded quotes or
+// newlines -- a path like that cannot appear in a registry value.
 func RunCommand(hsNodeBin string) string {
-	return fmt.Sprintf("%q run", hsNodeBin)
+	if strings.ContainsAny(hsNodeBin, "\"\r\n") {
+		panic("hsNodeBin contains a quote or newline")
+	}
+	return "\"" + hsNodeBin + "\" run"
 }
 
 // WindowsRunValue renders the HKCU Run value data (plain command string).

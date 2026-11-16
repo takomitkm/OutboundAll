@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/takomitkm/dialhome/hs/internal/node"
 	"github.com/takomitkm/dialhome/internal/errs"
+	"github.com/takomitkm/dialhome/internal/lockfile"
 	"github.com/takomitkm/dialhome/internal/logging"
 )
 
@@ -90,8 +92,11 @@ func cmdRun([]string) int {
 	}
 	lock, err := node.AcquireInstanceLock(l.StateDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "another hs-node supervisor owns this node (instance lock)")
-		return errs.ExitGeneric
+		if errors.Is(err, lockfile.ErrLocked) {
+			fmt.Fprintln(os.Stderr, "another hs-node supervisor owns this node (instance lock)")
+			return errs.ExitGeneric
+		}
+		fatal("instance lock: %v", err)
 	}
 	defer lock.Release()
 

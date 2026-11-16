@@ -8,13 +8,22 @@ import (
 // N-as-1: the autostart command line is exactly "BIN run" -- a drifted
 // command (wrong binary path, extra shell) would silently change what starts.
 func TestRunCommand(t *testing.T) {
-	got := RunCommand(`/X\Y\hs-node.exe`)
-	if got != `"/X\Y\hs-node.exe" run` {
-		t.Fatalf("RunCommand = %q", got)
+	got := RunCommand(`C:\Users\u\AppData\Local\Dialhome\bin\hs-node.exe`)
+	if want := `"C:\Users\u\AppData\Local\Dialhome\bin\hs-node.exe" run`; got != want {
+		t.Fatalf("RunCommand = %q, want %q", got, want)
 	}
 	if got := RunCommand("/usr/local/bin/hs-node"); got != `"/usr/local/bin/hs-node" run` {
 		t.Fatalf("RunCommand = %q", got)
 	}
+	// a path containing a quote must be refused, not escaped silently
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("RunCommand accepted a path with an embedded quote")
+			}
+		}()
+		RunCommand(`C:\ev"il\hs-node.exe`)
+	}()
 }
 
 // N-as-2: the HKCU Run key is the user-level hive path (never HKLM).
