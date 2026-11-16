@@ -12,7 +12,7 @@ import (
 // constant 5s, or forgetting the hourly jump) fails any line of this test.
 func TestLadderSequence(t *testing.T) {
 	spec := supervisor.DefaultSpec()
-	st := supervisor.NewChannelState("test")
+	st := supervisor.NewChannel("test")
 	var got []time.Duration
 	for i := 0; i < 12; i++ {
 		got = append(got, st.NextDelayAfterFailure(spec, false))
@@ -36,7 +36,7 @@ func TestLadderSequence(t *testing.T) {
 // per-source penalty lesson from the reference implementation).
 func TestLadderAuthFailureJumpsHourly(t *testing.T) {
 	spec := supervisor.DefaultSpec()
-	st := supervisor.NewChannelState("test")
+	st := supervisor.NewChannel("test")
 	d := st.NextDelayAfterFailure(spec, true)
 	if d != 3600*time.Second {
 		t.Fatalf("auth failure wait = %v, want 1h", d)
@@ -46,7 +46,7 @@ func TestLadderAuthFailureJumpsHourly(t *testing.T) {
 // N-pm-3: success resets the ladder (a flappy link must not park at 3600s).
 func TestLadderSuccessResets(t *testing.T) {
 	spec := supervisor.DefaultSpec()
-	st := supervisor.NewChannelState("test")
+	st := supervisor.NewChannel("test")
 	for i := 0; i < 9; i++ {
 		st.NextDelayAfterFailure(spec, false)
 	}
