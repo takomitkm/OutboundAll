@@ -63,7 +63,13 @@ func startProc(t *testing.T, logName string, argv []string) *proc {
 	t.Cleanup(func() {
 		if p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()
-			<-p.done
+		}
+		// done may already be drained (e.g. the test consumed it after an
+		// explicit SIGTERM) -- never block cleanup on it.
+		select {
+		case <-p.done:
+		case <-time.After(10 * time.Second):
+			t.Logf("cleanup: %s did not report exit within 10s", filepath.Base(p.logPath))
 		}
 	})
 	return p

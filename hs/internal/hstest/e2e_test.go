@@ -362,7 +362,7 @@ log:
 	sshProc.Stderr = &sessOut
 	if err := sshProc.Start(); err == nil {
 		time.Sleep(8 * time.Second) // let the session establish
-		expOut, expCode, _ := runCmd(t, 30*time.Second, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "expire", fmt.Sprint(nodeAID)})
+		expOut, expCode, _ := runCmd(t, 30*time.Second, []string{hsBin, "--config", me("hs/config.yaml"), "nodes", "expire", "--identifier", fmt.Sprint(nodeAID)})
 		t.Logf("GATE G3: node expired (exit %d): %s", expCode, strings.TrimSpace(expOut))
 		done := make(chan error, 1)
 		go func() { done <- sshProc.Wait() }()
