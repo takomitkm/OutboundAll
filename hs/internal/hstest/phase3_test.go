@@ -173,6 +173,9 @@ log:
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if out, code := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"), "users", "create", "ci"); code != 0 {
+		t.Fatalf("users create ci failed: %s", out)
+	}
 
 	// ---- hs-controller: init + serve (HOME isolated) ----
 	ctlHome := me("ctl-home")
