@@ -151,8 +151,9 @@ type hsUser struct {
 type hsNode struct {
 	ID       uint64 `json:"id"`
 	Hostname string `json:"hostname"`
-	Name     string `json:"name"`  // 0.29 protobuf-json shape may use "name"
-	Online   bool   `json:"online"`
+	// 0.29 protobuf-json shape may use "name" instead of "hostname"
+	Name   string `json:"name"`
+	Online bool   `json:"online"`
 }
 
 // dumpDir logs a directory listing (names + sizes) for state forensics.
