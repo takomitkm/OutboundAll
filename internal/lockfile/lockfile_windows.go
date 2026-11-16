@@ -54,7 +54,7 @@ func lockExclusiveNowait(f *os.File) error {
 	defer lockMu.Unlock()
 	h := syscall.Handle(f.Fd())
 	var ol syscall.Overlapped
-	r1, _, callErr := procLockFileEx.Call(
+	r1, _, _ := procLockFileEx.Call(
 		uintptr(h),
 		uintptr(lockExclusiveFlag|lockFailImmediately),
 		0,
