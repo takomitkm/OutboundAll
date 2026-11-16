@@ -15,6 +15,8 @@ package hstest
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/takomitkm/dialhome/hs/internal/authz"
 	"os"
 	"path/filepath"
 	"strings"
@@ -355,10 +357,10 @@ log:
 	// (no-ssh profile) must never appear as a grant destination.
 	if b, err := os.ReadFile(me("hs/policy.json")); err == nil {
 		body := string(b)
-		if !strings.Contains(body, TagNodeSSH) {
+		if !strings.Contains(body, authz.TagNodeSSH) {
 			t.Fatalf("policy file lost the ssh-enabled tag scoping:\n%s", body)
 		}
-		if strings.Contains(body, `"dst": ["tag:dialhome-node"]`) {
+		if strings.Contains(body, `"dst": ["`+authz.TagNode+`"]`) {
 			t.Fatalf("policy file grants node-b (no-ssh profile) data-plane access:\n%s", body)
 		}
 	}
