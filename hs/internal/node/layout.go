@@ -65,10 +65,14 @@ func (l Layout) Create() error {
 			return err
 		}
 	}
-	// The state dir carries the tailscale identity: strip inherited ACLs and
-	// grant only the current user (platform.HardenFile on Windows uses icacls;
-	// POSIX uses 0700 -- both no-elevation).
-	return platform.HardenFile(l.StateDir)
+	// The state dir carries the tailscale identity: only the current user may
+	// enter it. A DIRECTORY needs 0700 on unix -- HardenFile's 0600 would
+	// strip the execute bit and make it untraversable (CI LIVE-RED: the
+	// instance lock could not be created). Windows keeps HardenFile (icacls).
+	if runtime.GOOS == "windows" {
+		return platform.HardenFile(l.StateDir)
+	}
+	return os.Chmod(l.StateDir, 0o700)
 }
 
 func localAppData() (string, error) {

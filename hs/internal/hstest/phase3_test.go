@@ -264,7 +264,7 @@ log:
 
 	// ---- node-a comes ONLINE via hs-node run (resume path) ----
 	run1 := startBin(t, "hs-node-run1", nodeEnv, nodeBin, "run")
-	waitForErr(90*time.Second, "node-a online after enroll+resume", func() error {
+	if err := waitForErr(90*time.Second, "node-a online after enroll+resume", func() error {
 		nodes := hsNodesSafe(t, ws)
 		for _, n := range nodes {
 			if (strings.HasPrefix(n.Hostname, "node-a") || strings.HasPrefix(n.Name, "node-a")) && n.Online {
@@ -272,7 +272,9 @@ log:
 			}
 		}
 		return fmt.Errorf("node-a not online yet")
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	nodeAID := uint64(0)
 	for _, n := range hsNodesSafe(t, ws) {
 		if strings.HasPrefix(n.Hostname, "node-a") || strings.HasPrefix(n.Name, "node-a") {
@@ -290,7 +292,7 @@ log:
 	// ---- identity persistence across a full supervisor restart ----
 	run1.kill(t)
 	run2 := startBin(t, "hs-node-run2", nodeEnv, nodeBin, "run")
-	waitForErr(90*time.Second, "node-a online again after restart (resume path)", func() error {
+	if err := waitForErr(90*time.Second, "node-a online again after restart (resume path)", func() error {
 		nodes := hsNodesSafe(t, ws)
 		count := 0
 		for _, n := range nodes {
@@ -308,7 +310,9 @@ log:
 			return fmt.Errorf("expected 1 node-a, got %d", count)
 		}
 		return nil
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	t.Logf("GATE G5 (real path): resume via hs-controller kept node id %d, no duplicates", nodeAID)
 
 	// ---- revocation: API revoke -> resume blocked -> node cannot return ----
