@@ -114,6 +114,7 @@ jobs:
         run: bash hs/scripts/e2e-deps.sh
       - name: run e2e chain
         run: |
+          set -o pipefail
           source .e2e-deps/paths.env
           go test ./hs/internal/hstest -tags hs_integration -count=1 -timeout 14m -v 2>&1 | tee e2e.log
       - name: gate summary

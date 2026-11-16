@@ -51,7 +51,9 @@ func TestPhase1bChain(t *testing.T) {
     { "action": "accept", "src": ["*"], "dst": ["*:*"] }
   ],
   "ssh": [
-    { "action": "accept", "src": ["*"], "dst": ["*"], "users": ["autogroup:nonroot"] }
+    // policy v2: SSH rule src does NOT accept "*" (alias not supported) --
+    // autogroup:member is the "any user" selector for SSH sources.
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["*"], "users": ["autogroup:nonroot"] }
   ]
 }`
 	if err := os.WriteFile(me("hs/policy.json"), []byte(policy), 0o644); err != nil {
