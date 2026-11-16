@@ -1,8 +1,10 @@
 // singbox.go acquires the pinned sing-box binary for the node runtime.
 //
 // Pins (2026-11-17, GitHub release asset digests):
-//   windows/amd64: 99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df
-//   linux/amd64:   699a1b510aa4396b2176d32d1181920399ebf1e267835da6f3b598d0f7c24968
+//
+//	windows/amd64: 99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df
+//	linux/amd64:   699a1b510aa4396b2176d32d1181920399ebf1e267835da6f3b598d0f7c24968
+//
 // Bumping a version = bump the pin in the same commit (hs/scripts/e2e-deps.sh
 // carries the same pins for CI).
 package node

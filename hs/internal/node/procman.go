@@ -30,16 +30,16 @@ const StopGracePeriod = 15 * time.Second
 
 // Manager owns one running sing-box process.
 type Manager struct {
-	BinPath  string
+	BinPath string
 	// ConfigFn is the sing-box config json path.
 	ConfigFn string
 	Log      *slog.Logger
 
-	mu       sync.Mutex
-	cmd      *exec.Cmd
-	ladder   *supervisor.ChannelState
-	spec     supervisor.RetrySpec
-	stopped  bool
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	ladder  *supervisor.ChannelState
+	spec    supervisor.RetrySpec
+	stopped bool
 	// AuthFailureHook lets callers classify failures (e.g. scan the log for
 	// rejected resume keys); default: not an auth failure.
 	AuthFailureHook func() bool

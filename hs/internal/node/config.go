@@ -37,22 +37,22 @@ type SSHServer struct {
 // Config is the persisted node configuration (config.json). It must stay
 // free of secrets: anything sensitive is injected at runtime, not stored.
 type Config struct {
-	ConfigVersion int       `json:"config_version"`
+	ConfigVersion int `json:"config_version"`
 	// control plane base, e.g. https://hs.example.net
-	Server        string    `json:"server"`
+	Server string `json:"server"`
 	// hs-controller API base (enroll/resume)
-	Controller    string    `json:"controller"`
-	Hostname      string    `json:"hostname"`
+	Controller string `json:"controller"`
+	Hostname   string `json:"hostname"`
 
-	SSHServer     SSHServer `json:"ssh_server"`
+	SSHServer SSHServer `json:"ssh_server"`
 	// Forwarding enables the sing-box SSH forwarding surface. Default OFF
 	// (ADR-005): turning it on is an explicit per-node profile decision.
-	Forwarding    bool      `json:"forwarding"`
+	Forwarding bool `json:"forwarding"`
 
-	StateDir      string    `json:"state_dir"`
+	StateDir string `json:"state_dir"`
 	// TestAllowHTTP permits plain-http control plane URLs; CI-only escape
 	// hatch, never written by production enroll.
-	TestAllowHTTP bool      `json:"test_allow_http,omitempty"`
+	TestAllowHTTP bool `json:"test_allow_http,omitempty"`
 }
 
 // Validate enforces the config invariants; a rejected config must never run.

@@ -21,7 +21,7 @@ func TestLadderSequence(t *testing.T) {
 		5 * time.Second, 10 * time.Second, 20 * time.Second,
 		40 * time.Second, 60 * time.Second, 60 * time.Second,
 		60 * time.Second, 60 * time.Second, 60 * time.Second,
-		60 * time.Second, // 10th consecutive failure ...
+		60 * time.Second,   // 10th consecutive failure ...
 		3600 * time.Second, // ... >= FailsToHourly -> hourly
 		3600 * time.Second,
 	}

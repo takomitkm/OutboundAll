@@ -48,12 +48,12 @@ func DefaultLayout() (Layout, error) {
 		return Layout{}, err
 	}
 	return Layout{
-		Root:    root,
-		BinDir:  filepath.Join(root, "bin"),
-		CfgDir:  filepath.Join(root, "config"),
+		Root:     root,
+		BinDir:   filepath.Join(root, "bin"),
+		CfgDir:   filepath.Join(root, "config"),
 		StateDir: filepath.Join(root, "state"),
-		LogsDir: filepath.Join(root, "logs"),
-		TmpDir:  filepath.Join(root, "tmp"),
+		LogsDir:  filepath.Join(root, "logs"),
+		TmpDir:   filepath.Join(root, "tmp"),
 	}, nil
 }
 
