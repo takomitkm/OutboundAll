@@ -63,7 +63,7 @@ func TestPhase4Chain(t *testing.T) {
 		"  },\n" +
 		"  \"acls\": [ { \"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"*:*\"] } ],\n" +
 		"  \"ssh\": [\n" +
-		"    { \"action\": \"accept\", \"src\": [\"100.64.0.1\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"    { \"action\": \"accept\", \"src\": [\"ci@\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
 		"  ]\n" +
 		"}\n"
 	if err := os.WriteFile(me("hs/policy.json"), []byte(policy0), 0o644); err != nil {
