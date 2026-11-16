@@ -117,27 +117,38 @@ func (c *Config) Save(dir string) error {
 	return os.Rename(tmp, final)
 }
 
-// SingBoxConfig renders the sing-box JSON for this node. disable_forwarding
-// follows the deny posture (ADR-005/006); resume auth keys are passed on the
-// command line / environment by the supervisor, never written here.
+// SingBoxConfig renders the sing-box JSON for this node without any auth key
+// (display/validation shape). disable_forwarding follows the deny posture
+// (ADR-005/006).
 func (c *Config) SingBoxConfig() (string, error) {
+	return c.singBoxDoc("")
+}
+
+// singBoxDoc renders the endpoint config, optionally carrying the single-use
+// preauth key for this boot (ADR-002 resume path). The caller owns file
+// permissions (0600) whenever authKey != "".
+func (c *Config) singBoxDoc(authKey string) (string, error) {
 	if err := c.Validate(); err != nil {
 		return "", err
 	}
+	endpoint := map[string]any{
+		"type":             "tailscale",
+		"tag":              "ts",
+		"control_url":      c.Server,
+		"hostname":         c.Hostname,
+		"state_directory":  c.StateDir,
+		"system_interface": false,
+		"ssh_server": map[string]any{
+			"enabled":            c.SSHServer.Enabled,
+			"disable_forwarding": c.SSHServer.DisableForwarding,
+		},
+	}
+	if authKey != "" {
+		endpoint["auth_key"] = authKey
+	}
 	doc := map[string]any{
-		"log": map[string]any{"level": "info"},
-		"endpoints": []any{map[string]any{
-			"type":             "tailscale",
-			"tag":              "ts",
-			"control_url":      c.Server,
-			"hostname":         c.Hostname,
-			"state_directory":  c.StateDir,
-			"system_interface": false,
-			"ssh_server": map[string]any{
-				"enabled":            c.SSHServer.Enabled,
-				"disable_forwarding": c.SSHServer.DisableForwarding,
-			},
-		}},
+		"log":       map[string]any{"level": "info"},
+		"endpoints": []any{endpoint},
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

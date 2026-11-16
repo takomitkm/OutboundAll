@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,6 +28,9 @@ import (
 
 // StopGracePeriod is how long a SIGTERM'd sing-box gets before SIGKILL.
 const StopGracePeriod = 15 * time.Second
+
+// logTailMax bounds the in-memory tail kept for failure classification.
+const logTailMax = 8192
 
 // Manager owns one running sing-box process.
 type Manager struct {
@@ -40,6 +44,9 @@ type Manager struct {
 	ladder  *supervisor.ChannelState
 	spec    supervisor.RetrySpec
 	stopped bool
+	// tail keeps the last logTailMax bytes of child output for the auth hook.
+	tailMu sync.Mutex
+	tail   []byte
 	// AuthFailureHook lets callers classify failures (e.g. scan the log for
 	// rejected resume keys); default: not an auth failure.
 	AuthFailureHook func() bool
@@ -71,7 +78,13 @@ func (m *Manager) Run(ctx context.Context) error {
 		}
 		cmd := exec.Command(m.BinPath, "run", "-c", m.ConfigFn)
 		cmd.Stdout = ioWriterFunc(func(p []byte) (int, error) {
-			m.Log.Info(string(p))
+			m.tailMu.Lock()
+			m.tail = append(m.tail, p...)
+			if len(m.tail) > logTailMax {
+				m.tail = m.tail[len(m.tail)-logTailMax:]
+			}
+			m.tailMu.Unlock()
+			m.Log.Info(strings.TrimRight(string(p), "\r\n"))
 			return len(p), nil
 		})
 		cmd.Stderr = cmd.Stdout
@@ -144,6 +157,13 @@ func (m *Manager) Stop() {
 	if cmd != nil {
 		m.stop()
 	}
+}
+
+// LogTail returns the recent child output (bounded) for failure hooks.
+func (m *Manager) LogTail() string {
+	m.tailMu.Lock()
+	defer m.tailMu.Unlock()
+	return string(m.tail)
 }
 
 // Status renders the supervisor line for `hs-node status`.

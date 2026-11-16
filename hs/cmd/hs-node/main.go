@@ -18,12 +18,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/takomitkm/dialhome/hs/internal/node"
 	"github.com/takomitkm/dialhome/internal/errs"
@@ -56,8 +60,7 @@ func run(args []string) int {
 	case "doctor":
 		return cmdDoctor(args[1:])
 	case "enroll":
-		fmt.Fprintln(os.Stderr, "enroll: not implemented until phase 3 (invitation service)")
-		return errs.ExitNotImplemented
+		return cmdEnroll(args[1:])
 	case "version":
 		fmt.Printf("hs-node %s (sing-box pin %s)\n", version, node.VersionPin)
 		return 0
@@ -73,7 +76,7 @@ func usage() {
   hs-node status | stop | doctor | version
   hs-node install-singbox [--archive FILE]
   hs-node autostart install | uninstall | status
-  hs-node enroll --code CODE --server URL   (phase 3)
+  hs-node enroll --code CODE --controller URL [--hostname NAME]
 `)
 }
 
@@ -100,34 +103,45 @@ func cmdRun([]string) int {
 	}
 	defer lock.Release()
 
-	cfg, err := node.Load(l.CfgDir)
-	if err != nil {
-		fatal("load config: %v", err)
-	}
-	sbCfg, err := cfg.SingBoxConfig()
-	if err != nil {
-		fatal("render sing-box config: %v", err)
-	}
-	sbCfgPath := filepath.Join(l.CfgDir, "sing-box.json")
-	if err := os.WriteFile(sbCfgPath, []byte(sbCfg), 0o600); err != nil {
-		fatal("write sing-box config: %v", err)
-	}
-
 	logOut, logClose, err := logging.New(logging.Options{Dir: l.LogsDir, Name: "hs-node", AlsoStderr: true})
 	if err != nil {
 		fatal("open log: %v", err)
 	}
 	defer logClose.Close()
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// boot-wait: resume with the controller for up to 10 minutes (30s probes)
+	// before entering the retry ladder (reference NODE_MANUAL §8 semantics).
+	var sbCfgPath string
+	deadline := time.Now().Add(10 * time.Minute)
+	for {
+		sbCfgPath, err = node.PrepareRunConfig()
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			fatal("resume did not succeed within boot-wait window: %v", err)
+		}
+		logOut.Info("resume pending; retrying", "err", err.Error())
+		select {
+		case <-ctx.Done():
+			return 0
+		case <-time.After(30 * time.Second):
+		}
+	}
+
 	bin, err := node.Ensure(l.BinDir, "")
 	if err != nil {
 		fatal("provision sing-box: %v", err)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
 	mgr := node.NewManager(bin, sbCfgPath, logOut)
+	mgr.AuthFailureHook = func() bool {
+		// the resume key was rejected / never consumed: back off HARD
+		return strings.Contains(mgr.LogTail(), "Waiting for authentication")
+	}
 	logOut.Info("hs-node supervisor starting", "bin", bin, "config", sbCfgPath)
 	err = mgr.Run(ctx)
 	logOut.Info("hs-node supervisor exiting", "err", fmt.Sprint(err))
@@ -216,6 +230,35 @@ func cmdDoctor([]string) int {
 	}
 	fmt.Println("singbox pin:", node.VersionPin)
 	return 0
+}
+
+func cmdEnroll(args []string) int {
+	fs := flag.NewFlagSet("enroll", flag.ExitOnError)
+	code := fs.String("code", "", "one-time invitation code")
+	controllerURL := fs.String("controller", "", "hs-controller base URL (https)")
+	hostname := fs.String("hostname", defaultHostname(), "node hostname [a-z0-9-]")
+	if err := fs.Parse(args); err != nil {
+		return errs.ExitUsage
+	}
+	if *code == "" || *controllerURL == "" || *hostname == "" {
+		usage()
+		return errs.ExitUsage
+	}
+	msg, err := node.Enroll(*controllerURL, *code, *hostname)
+	if err != nil {
+		fatal("enroll: %v", err)
+	}
+	fmt.Println(msg)
+	fmt.Println("next: hs-node run   (supervisor starts; autostart install registers login startup)")
+	return 0
+}
+
+func defaultHostname() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(h, "-"))
 }
 
 func hsNodeExe() string {
