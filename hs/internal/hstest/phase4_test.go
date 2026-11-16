@@ -153,11 +153,13 @@ log:
 		t.Fatal(err)
 	}
 
-	// ---- controller tailscale identity, PLAIN (control v2) ----
-	// Untagged: if the controller can now reach node-c (tagged), the broken
-	// variable is tagged-src matching, not the policy shape.
+	// ---- controller tailscale identity, TAGGED (main chain restored) ----
+	// The grants src is tag:dialhome-controller; a peer matches a grant only
+	// through identities it actually holds (CI-proven: an untagged ctrl was
+	// invisible to the peer map even with the policy fully loaded). The
+	// controller therefore registers with its tag.
 	out, code := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"),
-		"preauthkeys", "create", "--user", "1", "-o", "json")
+		"preauthkeys", "create", "--user", "1", "--tags", "tag:dialhome-controller", "-o", "json")
 	if code != 0 {
 		t.Fatalf("ctrl preauthkey failed: %s", out)
 	}
