@@ -83,8 +83,8 @@ type InvitationState string
 const (
 	InvCreated  InvitationState = "created"
 	InvRedeemed InvitationState = "redeemed"
-	InvUsed     InvitationState = "used"    // node completed first contact
-	InvFailed   InvitationState = "failed"  // expired or revoked before use
+	InvUsed     InvitationState = "used"   // node completed first contact
+	InvFailed   InvitationState = "failed" // expired or revoked before use
 )
 
 // Invitation is a one-time enrollment invitation.
