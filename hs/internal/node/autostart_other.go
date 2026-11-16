@@ -10,6 +10,31 @@ import (
 	"runtime"
 )
 
+// InstallAutostart writes the platform entry; UNVERIFIED platforms return an
+// explicit error rather than pretending.
+func InstallAutostart(hsNodeBin, logDir string) (string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		return installLinuxUser(hsNodeBin, logDir)
+	case "darwin":
+		return installDarwinAgent(hsNodeBin, logDir)
+	default:
+		return "", fmt.Errorf("autostart unsupported on %s", runtime.GOOS)
+	}
+}
+
+// RemoveAutostart deletes the platform entry.
+func RemoveAutostart() (string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		return removeLinuxUser()
+	case "darwin":
+		return removeDarwinAgent()
+	default:
+		return "", fmt.Errorf("autostart unsupported on %s", runtime.GOOS)
+	}
+}
+
 // installLinuxUser prefers systemd --user; falls back to XDG autostart when
 // no user bus is reachable (headless ssh sessions, reference NODE_MANUAL §6).
 func installLinuxUser(hsNodeBin, logDir string) (string, error) {

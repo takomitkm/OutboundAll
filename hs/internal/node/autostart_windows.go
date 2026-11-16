@@ -7,6 +7,17 @@ import (
 	"os/exec"
 )
 
+// InstallAutostart writes the platform entry (HKCU Run). Returns a
+// description of what was written.
+func InstallAutostart(hsNodeBin, logDir string) (string, error) {
+	return installWindowsRun(hsNodeBin)
+}
+
+// RemoveAutostart deletes the platform entry.
+func RemoveAutostart() (string, error) {
+	return removeWindowsRun()
+}
+
 // installWindowsRun writes the HKCU Run value via reg.exe (user-level; the
 // sandbox-denied case must surface as a real error, not a silent success --
 // H13 in docs/PITFALLS.md).

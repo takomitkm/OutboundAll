@@ -52,7 +52,7 @@ func NewManager(binPath, configFn string, log *slog.Logger) *Manager {
 		BinPath:  binPath,
 		ConfigFn: configFn,
 		Log:      log,
-		ladder:   supervisor.NewChannelState("sing-box"),
+		ladder:   supervisor.NewChannel("sing-box"),
 		spec:     supervisor.DefaultSpec(),
 	}
 }
@@ -179,6 +179,3 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 type ioWriterFunc func(p []byte) (int, error)
 
 func (f ioWriterFunc) Write(p []byte) (int, error) { return f(p) }
-
-// hideWindow is set per-platform (CREATE_NO_WINDOW on Windows, no-op elsewhere).
-var hideWindow = func(cmd *exec.Cmd) {}

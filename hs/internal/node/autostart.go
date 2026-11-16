@@ -7,10 +7,7 @@
 // All mechanisms are per-user, never elevated (RUNBOOK 无提权实测矩阵).
 package node
 
-import (
-	"fmt"
-	"runtime"
-)
+import "fmt"
 
 // AutostartKey is the registry value / unit name across platforms.
 const AutostartKey = "hs-node"
@@ -79,32 +76,4 @@ func DarwinPlist(hsNodeBin string, logDir string) string {
 `, hsNodeBin, logDir, logDir)
 }
 
-// InstallAutostart writes the platform entry. Returns a description of what
-// was written; UNVERIFIED platforms return an explicit error rather than
-// pretending.
-func InstallAutostart(hsNodeBin, logDir string) (string, error) {
-	switch runtime.GOOS {
-	case "windows":
-		return installWindowsRun(hsNodeBin)
-	case "linux":
-		return installLinuxUser(hsNodeBin, logDir)
-	case "darwin":
-		return installDarwinAgent(hsNodeBin, logDir)
-	default:
-		return "", fmt.Errorf("autostart unsupported on %s", runtime.GOOS)
-	}
-}
 
-// RemoveAutostart deletes the platform entry.
-func RemoveAutostart() (string, error) {
-	switch runtime.GOOS {
-	case "windows":
-		return removeWindowsRun()
-	case "linux":
-		return removeLinuxUser()
-	case "darwin":
-		return removeDarwinAgent()
-	default:
-		return "", fmt.Errorf("autostart unsupported on %s", runtime.GOOS)
-	}
-}
