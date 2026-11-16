@@ -231,7 +231,7 @@ log:
 
 	// policy reload + client ACL propagation + path establishment all take
 	// time; retry the probe instead of a fixed sleep
-	stOut, stCode, _ := runBin(t, nil, tsBin, sockArg, "status")
+	stOut, stCode := runBin(t, nil, tsBin, sockArg, "status")
 	t.Logf("controller status before G4 probes (exit %d):\n%s", stCode, stOut)
 
 	// G4 positive: controller -> node-c:22 must connect (SSH rule covers it)
