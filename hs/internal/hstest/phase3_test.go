@@ -101,6 +101,9 @@ func TestPhase3Chain(t *testing.T) {
 
 	ws := t.TempDir()
 	me := func(sub string) string { return ws + "/" + sub }
+	if err := os.MkdirAll(me("hs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// ---- headscale (fresh instance on a second port) ----
 	cfg := fmt.Sprintf(`server_url: http://127.0.0.1:8080
