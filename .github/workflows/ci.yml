@@ -36,7 +36,10 @@ jobs:
         run: |
           unformatted="$(gofmt -l . || true)"
           if [ -n "$unformatted" ]; then
-            echo "these files need gofmt:"; echo "$unformatted"; exit 1
+            echo "these files need gofmt:"; echo "$unformatted"
+            echo "---- gofmt diff ----"
+            gofmt -d $unformatted
+            exit 1
           fi
       - name: go vet
         run: go vet ./...
