@@ -9,6 +9,7 @@ package controller
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"log"
 	"net"
 
 	"github.com/takomitkm/dialhome/hs/internal/authz"
@@ -49,7 +50,13 @@ type Server struct {
 
 // syncPolicy renders the current authorization state and hands it to the
 // reloader. Best effort on node-facing flows (registration is never blocked
-// by policy I/O); admin mutations surface the failure.
+// by policy I/O) but NEVER silent: a failure here leaves headscale enforcing
+// a stale policy, which is a security-relevant divergence, so every failure
+// is logged. Admin mutations additionally surface it in the response.
+var syncPolicyLog = func(format string, args ...any) {
+	log.Printf("policy sync FAILED: "+format, args...)
+}
+
 func (s *Server) syncPolicy() error {
 	if s.opt.ReloadPolicy == nil {
 		return nil
@@ -59,7 +66,12 @@ func (s *Server) syncPolicy() error {
 	for _, n := range nodes {
 		views = append(views, authz.NodeView{Hostname: n.Hostname, SSH: n.SSHEnabled()})
 	}
-	return s.opt.ReloadPolicy(authz.Render(views, s.opt.PolicyOwner))
+	rendered := authz.Render(views, s.opt.PolicyOwner)
+	if err := s.opt.ReloadPolicy(rendered); err != nil {
+		syncPolicyLog("%v", err)
+		return err
+	}
+	return nil
 }
 
 type rateBucket struct {
