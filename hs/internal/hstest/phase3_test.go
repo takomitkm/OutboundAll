@@ -90,7 +90,8 @@ func TestPhase3Chain(t *testing.T) {
 	ctlBin := filepath.Join(repo, ".e2e-deps", "hs-controller")
 	nodeBin := filepath.Join(repo, ".e2e-deps", "hs-node")
 	for _, b := range []string{ctlBin, nodeBin} {
-		build, code := runBin(t, nil, "go", "build", "-o", b, "./hs/cmd/"+filepath.Base(b))
+		pkg := filepath.Join(repo, "hs", "cmd", filepath.Base(b))
+		build, code := runBin(t, nil, "go", "build", "-o", b, pkg)
 		_ = build
 		if code != 0 {
 			t.Fatalf("build %s failed:\n%s", filepath.Base(b), build)
@@ -221,6 +222,7 @@ log:
 		"HOME=" + nodeHome,
 		"XDG_CONFIG_HOME=" + nodeHome + "/.config",
 		"DIALHOME_HS_SINGBOX=" + sbBin,
+		"DIALHOME_HS_TEST_ALLOW_HTTP=1", // CI: plaintext headscale on localhost
 	}
 	out, code = runBin(t, nodeEnv, nodeBin, "enroll",
 		"--code", inviteCode,
@@ -350,24 +352,3 @@ func controllerAPI(t *testing.T, method, url, token, body string) string {
 	}
 	return buf.String()
 }
-
-// t2 adapts waitForErr (which takes a testing.TB-compatible arg).
-func t2(t *testing.T) testingT { return t }
-
-type testingT interface {
-	fatalf(format string, args ...interface{})
-}
-
-// waitForErrT keeps the harness signature but lets this file use its own wait.
-func waitForErrT(timeout time.Duration, what string, fn func() error) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if err := fn(); err == nil {
-			return nil
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return fmt.Errorf("timeout waiting for %s after %v", what, timeout)
-}
-
-var _ = waitForErrT
