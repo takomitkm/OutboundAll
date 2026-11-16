@@ -193,7 +193,7 @@ func PrepareRunConfig() (cfgPath string, err error) {
 // writeSingBoxConfig renders the endpoint config with an auth key. The file
 // is 0600: the key is single-use and short-lived, but it is still a secret.
 func writeSingBoxConfig(cfgDir string, cfg *Config, authKey string) error {
-	doc, err := cfg.singBoxConfigWithKey(authKey)
+	doc, err := cfg.singBoxDoc(authKey)
 	if err != nil {
 		return err
 	}
