@@ -1,6 +1,6 @@
 # ADR-001 — 网络架构：Headscale 控制面 + 内嵌 DERP + Caddy TLS + userspace 节点
 
-状态：Accepted（G2 证据待 CI 回填）
+状态：Accepted（G2 已实证）
 
 ## Context
 
@@ -21,4 +21,4 @@
 - 对外端口面收敛为 443/TCP + 3478/UDP（对比参考实现的单 sshd 端口：数量同级）。
 - userspace 模式的入站能力受限（G1 裁决，见 ADR-005）。
 - Headscale 成为信任根（THREAT_MODEL C5）。
-- G2 证据：CI run `待回填`。
+- G2 证据：**PASS**（run 128b5f4，hs e2e job 全绿）：sing-box v1.14.4 endpoint 以 `http://` control_url 完成注册（headscale v0.29.7，`/machine/register` 200）。生产恒 TLS，测试环境 http 可用。

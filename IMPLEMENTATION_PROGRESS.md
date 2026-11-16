@@ -17,9 +17,16 @@
 | 2026-11-17 | e0388c1 | CI 修复 #1：Windows runner `core.autocrlf=true` → checkout CRLF → gofmt 全红。9 次历史 run 全败的根因。修复后 windows vet+test 首次绿 |
 | 2026-11-17 | df89ab2 | CI 修复 #2：smoke-linux 首次真正运行即暴露 `$?` 被 echo 消费的断言 bug（产品 exit=2 正确，断言却测 echo 的 0）→ rc 变量修复。同 commit：Phase 0 两份分析文档 |
 | 2026-11-17 | 1999e35 | Phase 1：docs/hs/ARCHITECTURE.md + SECURITY_MODEL.md + THREAT_MODEL.md + ADR 001–006 + 本台账（df89ab2 CI 全绿实证后推送） |
-| 2026-11-17 | （本 commit） | Phase 1b：hs/scripts/e2e-deps.sh（三件钉版本+sha256 下载）+ hs/internal/hstest（G2/G5/G4p 硬门 + G1/G3 观察的 E2E 链）+ CI hs-e2e job |
+| 2026-11-17 | 7a0f3af→128b5f4 | Phase 1b：hs/scripts/e2e-deps.sh（三件钉版本+sha256 下载）+ hs/internal/hstest E2E 链 + CI hs-e2e job。六轮红→绿（policy v2 src/dst 拒 `*`、mkdir、管道假绿、gofmt 对齐、cleanup 死锁、expire 语法），**run 128b5f4 全 5 job 绿** |
 
 ## 2. 关键事实与决策（防止后面忘）
+
+0. **Phase 1b 实证结论（run 128b5f4，全 5 job 绿）**：
+   - G2 ✅ http:// control_url 注册可行（CI 无 TLS 可用；生产恒经 Caddy）。
+   - G5 ✅+注记：身份持久（同 node id 无重复）；**sing-box/tsnet 每次启动都要 auth_key 才恢复**（state 在盘上仍进 Waiting-for-auth）→ ADR-002 加 resume-key 通道（Phase 3 落实）。
+   - G4p ✅：官方 tailscale 客户端 → Headscale SSH ACL → sing-box ssh_server 全链通；会话以 sing-box 进程用户运行（whoami=runner）；`autogroup:member` 是 policy v2 SSH 规则的合法 src/dst（`*` 两处都不收）。
+   - G1 观察：直连路径 0-1ms pong（listen_port 钉 42421）；入站 TCP 非 22 端口也被 endpoint 接受（无响应数据）→ ADR-005 Phase 6 收口。
+   - G3 观察：**node expire 不终止已建立 SSH 会话**（45s 后仍活）→ 撤销语义=新连接拒+旧会话不即时终止，与参考实现同构；逐会话终止=文档化偏差。
 
 1. **依赖缺口**：sing-box v1.14.4 内嵌 sagernet/tailscale fork = v1.102.1-mod.5（tip 79c173244，2026-10-19）< Headscale 公告要求的 1.104.4（SSH forwarding/session/Serve 漏洞修复）。→ ADR-006 门控：CI 全开、生产默认 disable_forwarding+deny-by-default、解锁条件 (a) fork 跟进或 (b) 机主书面接受。
 2. **版本钉**：Headscale v0.29.7 / sing-box v1.14.4 / 官方客户端 ≥1.104.4（当前 1.104.7）/ Go 1.27。
@@ -34,6 +41,9 @@
 | 0b7be19 | ✅ | ❌ | ⏭ | ⏭ | CRLF 根因（历史遗留） |
 | e0388c1 | ✅ | ✅ | ❌ | 🔄 | smoke 首跑暴露 $? bug |
 | df89ab2 | ✅ | ✅ | ✅ | ✅ | **全绿（本项目 CI 首次全绿）** |
+| 7a0f3af | ✅ | ✅ | ✅ | ✅ | e2e 假绿（管道吞退出码）——测试实际红 |
+| e4deb55/82720c1 | ✅ | ✅ | ✅ | ✅/— | e2e 红（policy `*` / mkdir）——pipefail 后诚实红 |
+| 128b5f4 | ✅ | ✅ | ✅ | ✅ | **hs e2e 全绿（G2/G4p/G5 硬门过）** |
 
 ## 4. 失败的测试 / 未决风险
 

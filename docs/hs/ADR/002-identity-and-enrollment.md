@@ -1,6 +1,6 @@
 # ADR-002 — 身份与登记：state 目录即节点身份；邀请码 → 单用 preauth key
 
-状态：Accepted（G5 证据待 CI 回填）
+状态：Accepted（G5 已实证，含一条设计注记）
 
 ## Context
 
@@ -21,4 +21,5 @@
 
 - preauth key 短命且单用，泄露窗口极小（N2'）。
 - 节点身份持久化依赖 state 目录完整性 → N12'（损坏显式失败，不静默重生成）。
-- G5 证据：CI run `待回填`。
+- G5 证据（run 128b5f4）：**身份持久成立**——重启后同一 node id（无重复节点）；但 sing-box/tsnet **每次启动都需要 auth_key 才能恢复登录**（无 key 时进入 Waiting-for-authentication，state 目录里 tailscaled.state 明明存在）。
+- **设计注记**：hs-controller 必须提供「resume-key」通道——节点每次启动时以某种可验证身份（注册时下发的节点密钥）向 hs-controller 换取一个短期 single-use preauth key。这不破坏三身份分离（resume key ≠ 邀请码 ≠ preauth key 本体），但把「登记一次性」的语义精确化为「登记身份一次性 + 启动恢复走受控通道」。已在 ADR-002 登记，Phase 3 实现时落实。

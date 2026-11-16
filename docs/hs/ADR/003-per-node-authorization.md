@@ -1,6 +1,6 @@
 # ADR-003 — 逐节点授权：deny-by-default policy + 逐节点 tag + SSH ACL
 
-状态：Accepted（G3/G4 证据待 CI 回填）
+状态：Accepted（G3/G4p 已实证）
 
 ## Context
 
@@ -24,4 +24,5 @@ Headscale 的 ACL/grants/SSH policy 是授权载体。参考实现的"permitlist
 
 - 授权变更（新 profile / 撤销）是控制面操作，立即影响新连接（已建会话由 G3 定）。
 - 逐节点隔离可测：N8'/N9' 证明"未授权节点连不了"与"只有 controller 连得了"。
-- G3 证据：CI run `待回填`；G4 证据：CI run `待回填`。
+- G3 证据（run 128b5f4）：**node expire 不终止已建立的 SSH 会话**——会话在 expire 后 45 秒仍然存活。撤销语义如实记录为：新连接被拒（N6'），既有会话不立即终止（与参考实现「删 AK 行后 sshd 兜底」行为一致）。逐会话终止 = 明确的文档化偏差。
+- G4p 证据（run 128b5f4）：**SSH ACL 生效**——官方 tailscale 客户端经 Headscale SSH ACL（`autogroup:member → autogroup:member, users: autogroup:nonroot`）成功登入 sing-box ssh_server，会话以 sing-box 进程用户运行（`whoami` = 启动用户，Windows CLI 拒绝其他本地账户的语义成立）。

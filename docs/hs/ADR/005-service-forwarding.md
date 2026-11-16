@@ -1,6 +1,6 @@
 # ADR-005 — 服务转发：G1 裁决驱动；默认全关，绝不宣称逐服务等价
 
-状态：Pending G1（本 ADR 的最终形态由 CI 实证决定；下方两个候选已预写）
+状态：Pending G1-完成（部分实证；Phase 6 收口）
 
 ## Context
 
@@ -20,6 +20,11 @@ forwarding 是**全局开关**（`disable_forwarding: true/false`），无逐服
      forwarding broker（节点侧用户级、只监听白名单目标）。绝不宣称 Headscale tag 能替代 permitlisten 语义。
 3. 无论 a/b：**禁止暴露 Windows 回环管理服务**（如 445/3389/5985）——profile 模板带默认拒绝清单。
 4. 任何"已实现转发"的文档声明必须对应一个 CI 断言；否则写"偏差"。
+
+## G1 部分证据（run 128b5f4）
+
+- tailnet 入站 TCP :22 → ssh_server 应答（G4p 全链走通）。
+- tailnet 入站 TCP :8443（无监听服务）→ **连接被接受但无响应数据**：userspace endpoint 的网络栈接受任意端口的入站 TCP，然后无 handler 处理。即「入站到达」成立；「入站能否被转发到任意回环服务」取决于 sing-box 路由配置是否有面向 tailnet 入站的 inbound 机制——Phase 6 用配置实验收口（当前候选 G1-b：只有全局 SSH forwarding 开关）。
 
 ## Consequences
 

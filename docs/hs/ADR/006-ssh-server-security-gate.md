@@ -22,7 +22,7 @@ bypass the limitation."）。
 ## Decision
 
 1. **CI/测试环境**：ssh_server 全量启用（测试是发现问题的场，不因门控而减少覆盖）。
-2. **生产默认姿态**（fork 未跟进期间）：
+2. **生产默认姿态**（fork 未跟进期间；CI 全量启用并在 1.14.4 + headscale 0.29.7 组合下全链验证通过）：
    - `disable_forwarding: true`（公告点名的 SSH forwarding 漏洞面直接关闭）；
    - SSH ACL deny-by-default，仅 controller 身份可达（缩小暴露面）；
    - 生产启用 ssh_server 须满足其一：
