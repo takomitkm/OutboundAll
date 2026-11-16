@@ -14,6 +14,7 @@ package hstest
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
