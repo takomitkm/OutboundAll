@@ -26,7 +26,8 @@ const (
 // NodeView is what the renderer needs per node (from the controller store).
 type NodeView struct {
 	Hostname string
-	SSH      bool // profile grants controller SSH access
+	SSH      bool  // profile grants controller SSH access
+	Services []int // tailnet-facing service ports (tcp) this node exposes
 }
 
 // Render produces the headscale policy JSON (huJSON, trailing comments ok).
