@@ -114,7 +114,6 @@ func cmdInvite(args []string) int {
 		usage()
 		return errs.ExitUsage
 	}
-	api := ""
 	switch args[0] {
 	case "create":
 		// [--label L] [--profile P] [--ttl-hours H] [--api URL] [--token T]
