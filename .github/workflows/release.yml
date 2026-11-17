@@ -1,0 +1,183 @@
+name: release
+
+# 从 tag 构建六平台矩阵并发布 GitHub Release。
+# 触发：推 v* tag，或手动 workflow_dispatch（必须填 tag 输入）。
+#
+# 仓库默认 workflow 权限是 read-only，所以 publish job 显式声明 contents: write。
+# 发布前先跑 gofmt + vet + test 作为 gate：测试不过就不发。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v0.9.0 (required for manual runs)'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local  # fail loudly instead of silently downloading a toolchain; go.mod pins 1.27
+
+jobs:
+  gate:
+    name: gate (gofmt + vet + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache: true
+      - name: gofmt check
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l . || true)"
+          if [ -n "$unformatted" ]; then
+            echo "these files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./... -count=1
+
+  release:
+    name: build matrix + publish
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # build-matrix.sh 用 git describe 取版本号，需要 tag
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache: true
+
+      - name: resolve tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              TAG="${GITHUB_REF_NAME}"
+            else
+              echo "::error::workflow_dispatch needs the 'tag' input"
+              exit 1
+            fi
+          fi
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "release tag = ${TAG}"
+
+      - name: build matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build-matrix.sh "$TAG"
+          echo '--- dist ---'
+          ls -l dist
+
+      - name: write release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          # dialhome v0.9.0（Go 版）
+
+          把**没有公网 IP、不能开入站端口、不给管理员**的机器拨回家。一个二进制，三个角色：
+          `node` / `controller` / `relay`。
+
+          本 release 由 CI 从 `go` 分支构建（代码存档点 `0b78c37`），先过 `gofmt` + `go vet`
+          + `go test ./...`，再产出六平台矩阵。
+
+          ## 下载
+
+          | 文件 | 用途 |
+          |---|---|
+          | `dialhome-windows-amd64.exe` | Windows x64（节点 / 控制器） |
+          | `dialhome-windows-arm64.exe` | Windows ARM64 |
+          | `dialhome-linux-amd64` | Linux x64（relay / 节点 / 控制器） |
+          | `dialhome-linux-arm64` | Linux ARM64 |
+          | `dialhome-darwin-amd64` | macOS Intel（未实机验证） |
+          | `dialhome-darwin-arm64` | macOS Apple Silicon（未实机验证） |
+          | `SHA256SUMS` | 全部二进制的校验和 |
+
+          ## 平台状态
+
+          | 平台 | 状态 |
+          |---|---|
+          | Windows amd64 | 实机验收 |
+          | Linux amd64 | 实机验收（Debian 13 生产 relay） |
+          | Windows / Linux arm64 | 能编译，未实机验收 |
+          | macOS amd64 / arm64 | 仅能编译，运行未验证 |
+
+          ## 三条不变式
+
+          - **零管理员**：不写系统配置、不装系统服务、不需 UAC/sudo、不动防火墙；自启动是用户级
+            （Windows `HKCU\Run` / Linux `systemd --user` / macOS LaunchAgent）。
+          - **回环限定**：所有通道都是字面量 `127.0.0.1:<port>`，代码拒绝 `localhost` / `0.0.0.0`，
+            relay 侧 `permitlisten` 精确匹配。
+          - **三身份分离**：节点隧道私钥本机生成、不出机；控制器管理密钥只在控制器；
+            入网凭证一次性、只够提交一把公钥。
+
+          ## 五分钟上手
+
+          relay（Linux，普通用户即可）：
+
+              dialhome relay init --advertise 127.0.0.1:22
+              dialhome relay credentials issue my-node --manager-pub ~/.dialhome/manager.pub
+
+          节点（Windows / Linux，无需管理员）：
+
+              dialhome node install --mode persistent --credential C:\path\cred.json
+              dialhome node status
+
+          控制器：
+
+              dialhome controller init
+              dialhome controller exec my-node "hostname && whoami"
+
+          ## 已知限制
+
+          - Windows `--mode persistent` 通过 `HKCU\Run` 拉起 `dialhome node run`，登录时会有一个
+            控制台窗口：代码用 `os.Executable()` + `node run`，**没有** windowsgui 变体。
+            `docs/ARCHITECTURE.md` / `man` 里提到的 `dialhomed.exe` 尚未实现（`cmd/` 只有
+            `dialhome`），构建矩阵也只产出一个 Windows 二进制。
+          - macOS 只保证能编译，未做运行验证。
+
+          ## 校验
+
+              sha256sum -c SHA256SUMS                                  # Linux / macOS
+              Get-FileHash -Algorithm SHA256 .\dialhome-windows-amd64.exe   # Windows
+
+          ## 源码
+
+          分支 `go`，代码存档点 `0b78c37`；本 tag 额外包含 release 工作流一个提交。
+          文档见仓库 `docs/`（NODE_MANUAL / CONTROLLER_MANUAL / RELAY_MANUAL / SECURITY_MODEL / PITFALLS）。
+          NOTES
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists -- re-uploading assets with --clobber"
+            gh release upload "$TAG" dist/dialhome-* dist/SHA256SUMS --clobber
+          else
+            gh release create "$TAG" dist/dialhome-* dist/SHA256SUMS \
+              --target "$GITHUB_SHA" \
+              --title "dialhome ${TAG} (Go edition)" \
+              --notes-file RELEASE_NOTES.md
+          fi
+          echo '--- published ---'
+          gh release view "$TAG" --json tagName,isDraft,url,assets \
+            --jq '.tagName, .isDraft, .url, (.assets[] | "\(.name)\t\(.size)")'
