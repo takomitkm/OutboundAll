@@ -14,14 +14,16 @@ package hstest
 
 import (
 	"fmt"
+	"net"
 	"net/http"
-
-	"github.com/takomitkm/dialhome/hs/internal/authz"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/takomitkm/dialhome/hs/internal/authz"
 )
 
 func TestPhase4Chain(t *testing.T) {
@@ -183,7 +185,7 @@ log:
 	// ---- two nodes: node-b (no-ssh) and node-c (default ssh) ----
 	// each node gets its OWN home (state dir + instance lock are per-layout;
 	// sharing one home would deadlock the second supervisor on hs-node.lock)
-	enroll := func(hostname, profile string) {
+	enroll := func(hostname, profile string, svcPort int) {
 		nodeHome := me("node-home-" + hostname)
 		nodeEnv := []string{
 			"HOME=" + nodeHome,
@@ -223,6 +225,26 @@ log:
 		if code != 0 {
 			t.Fatalf("enroll %s failed: %s", hostname, out)
 		}
+		// Phase-6 experiment hook: a service port >= 1 edits the node config
+		// (between enroll and run) so hs-node renders the route rules for it.
+		if svcPort >= 1 {
+			cfgPath := nodeHome + "/.config/dialhome-hs/config/config.json"
+			cb, rerr := os.ReadFile(cfgPath)
+			if rerr != nil {
+				t.Fatal(rerr)
+			}
+			var cfgDoc map[string]any
+			if jerr := jsonUnmarshal(string(cb), &cfgDoc); jerr != nil {
+				t.Fatal(jerr)
+			}
+			cfgDoc["services"] = []map[string]any{
+				{"name": "web", "target": fmt.Sprintf("127.0.0.1:%d", svcPort)},
+			}
+			nb, _ := jsonMarshal(cfgDoc)
+			if werr := os.WriteFile(cfgPath, nb, 0o600); werr != nil {
+				t.Fatal(werr)
+			}
+		}
 		startBin(t, "hs-node-"+hostname, nodeEnv, nodeBin, "run")
 	}
 
@@ -242,9 +264,9 @@ log:
 		return id
 	}
 
-	enroll("node-b", "no-ssh")
+	enroll("node-b", "no-ssh", 0)
 	idB := waitOnline("node-b")
-	enroll("node-c", "default")
+	enroll("node-c", "default", 8443)
 	idC := waitOnline("node-c")
 	t.Logf("node-b online (id %d, no-ssh profile), node-c online (id %d, default)", idB, idC)
 
@@ -350,6 +372,85 @@ log:
 		t.Fatalf("G4 FAILED: node-b (no-ssh profile) answered SSH -- deny-by-default broken")
 	}
 	t.Logf("GATE G4 negative: node-b:22 not reachable (exit %d, out=%q) -- deny-by-default holds", nbCode, strings.TrimSpace(nbOut))
+
+	// ---- Phase-6 G1 experiment: service forwarding through the userspace
+	// endpoint. node-c exposes 127.0.0.1:8443 (a loopback service ON THE NODE
+	// -- here the runner itself). The node route engine must forward
+	// tailnet:8443 -> 127.0.0.1:8443 only for the explicit service, reject
+	// everything else, and leave ssh_server:22 working.
+	svc := net.Listen("tcp", "127.0.0.1:8443")
+	if svc == nil {
+		t.Fatal("cannot bind the loopback service")
+	}
+	t.Cleanup(func() { svc.Close() })
+	go func() {
+		for {
+			conn, err := svc.Accept()
+			if err != nil {
+				return
+			}
+			conn.Write([]byte("svc-8443-ok\n"))
+			conn.Close()
+		}
+	}()
+
+	// the policy needs a grant for tcp:8443 -- headscale-side WHO gate. The
+	// node-side WHAT gate (route rules) ships with the node config.
+	fullPolicy := "{\n" +
+		"  \"tagOwners\": {\n" +
+		"    \"tag:dialhome-controller\": [\"ci@\"],\n" +
+		"    \"tag:dialhome-node\": [\"ci@\"],\n" +
+		"    \"tag:dialhome-node-ssh\": [\"ci@\"]\n" +
+		"  },\n" +
+		"  \"grants\": [\n" +
+		"    { \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"ip\": [\"tcp:22\"] },\n" +
+		"    { \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node\"], \"ip\": [\"tcp:8443\"] }\n" +
+		"  ],\n" +
+		"  \"ssh\": [\n" +
+		"    { \"action\": \"accept\", \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"  ]\n" +
+		"}\n"
+	if err := os.WriteFile(me("hs/policy.json"), []byte(fullPolicy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"),
+		"policy", "check", "--file", me("hs/policy.json")); code != 0 {
+		t.Fatalf("service policy does not parse:\n%s", out)
+	}
+	if out, err := exec.Command("pidof", "headscale").Output(); err == nil && len(out) > 0 {
+		_ = exec.Command("kill", "-HUP", strings.TrimSpace(string(out))).Run()
+	}
+	time.Sleep(6 * time.Second) // policy reload + propagation
+
+	// G1 positive: ctrl -> node-c:8443 must return the service marker
+	svcOut, svcCode := runBin(t, nil, tsBin, sockArg, "nc", "node-c", "8443")
+	if svcCode != 0 || !strings.Contains(svcOut, "svc-8443-ok") {
+		t.Fatalf("G1 FAILED: tailnet:8443 did not reach the loopback service (exit %d, out=%q)", svcCode, svcOut)
+	}
+	t.Logf("GATE G1 positive: tailnet:8443 -> loopback service forwarded (marker received)")
+
+	// G1 negative 1: an unlisted port must NOT reach anything (reject-all)
+	rejOut, rejCode := runBin(t, nil, "timeout", "5", tsBin, sockArg, "nc", "node-c", "9999")
+	if rejCode == 0 && strings.Contains(rejOut, "svc-8443-ok") {
+		t.Fatalf("G1 FAILED: unlisted port 9999 leaked the service -- reject-all broken")
+	}
+	t.Logf("GATE G1 negative 1: unlisted port 9999 rejected (exit %d)", rejCode)
+
+	// G1 negative 2: node-b (no service configured) must not forward either
+	nbSvcOut, nbSvcCode := runBin(t, nil, "timeout", "5", tsBin, sockArg, "nc", "node-b", "8443")
+	if nbSvcCode == 0 && strings.Contains(nbSvcOut, "svc-8443-ok") {
+		t.Fatalf("G1 FAILED: node-b (no service) leaked the service -- node-side gate broken")
+	}
+	t.Logf("GATE G1 negative 2: node-b:8443 not forwarded (exit %d)", nbSvcCode)
+
+	// ssh_server:22 must SURVIVE the reject-all rule (its tsnet listener
+	// claims :22 before the router sees the connection)
+	sshAfterOut, sshAfterCode := runBin(t, nil, tsBin, sockArg,
+		"ssh", username+"@node-c", "echo ssh-survives-reject")
+	if sshAfterCode != 0 || !strings.Contains(sshAfterOut, "ssh-survives-reject") {
+		t.Fatalf("G1 FAILED: ssh_server died under the reject-all rule (exit %d, out=%q)", sshAfterCode, sshAfterOut)
+	}
+	t.Logf("GATE G1 ssh survival: ssh_server:22 works with reject-all live")
 
 	// policy file on disk keeps the deny-by-default SHAPE: grants scope ONLY
 	// the ssh-enabled tag (with node-c enrolled the grants array is non-empty;
