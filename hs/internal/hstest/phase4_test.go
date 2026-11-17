@@ -427,7 +427,7 @@ log:
 	// instantly and the marker is lost (CI-proven: exit 0, empty out) -- keep
 	// stdin open with a sleep pipe.
 	svcOut, svcCode := runBin(t, nil, "sh", "-c",
-		"sleep 3 | tailscale "+sockArg+" nc node-c 8443")
+		"sleep 3 | "+tsBin+" "+sockArg+" nc node-c 8443")
 	if svcCode != 0 || !strings.Contains(svcOut, "svc-8443-ok") {
 		t.Fatalf("G1 FAILED: tailnet:8443 did not reach the loopback service (exit %d, out=%q)", svcCode, svcOut)
 	}
