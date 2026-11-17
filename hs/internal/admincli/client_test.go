@@ -98,12 +98,12 @@ func TestTokenFromSources(t *testing.T) {
 		t.Fatalf("flag must win: %q", got)
 	}
 	t.Setenv("DIALHOME_HS_ADMIN_TOKEN", "")
-	os.WriteFile(filepath.Join(dir, "admin-token"), []byte("from-file\n"), 0o600)
-	home := os.UserHomeDir
-	defer func() { _ = home }()
-	// file path is $HOME/.dialhome-hs/admin-token; point HOME at dir
+	// the client looks for $HOME/.dialhome-hs/admin-token
+	os.MkdirAll(filepath.Join(dir, ".dialhome-hs"), 0o700)
+	os.WriteFile(filepath.Join(dir, ".dialhome-hs", "admin-token"), []byte("from-file\n"), 0o600)
+	// point HOME at dir (linux) and USERPROFILE too (windows variant)
 	t.Setenv("HOME", dir)
-	t.Setenv("USERPROFILE", dir) // windows variant of UserHomeDir
+	t.Setenv("USERPROFILE", dir)
 	if got := TokenFromSources(""); got != "from-file" {
 		t.Fatalf("file not used: %q", got)
 	}
@@ -130,8 +130,8 @@ func TestSFTPProxy(t *testing.T) {
 	if proxy != "tailscale --socket=/tmp/ts.sock nc win-a 22" {
 		t.Fatalf("proxy = %q", proxy)
 	}
-	if len(argv) != 5 || argv[0] != "sftp" || argv[2] != "ProxyCommand="+proxy {
-		t.Fatalf("argv = %v", argv)
+	if len(argv) != 4 || argv[0] != "sftp" || argv[1] != "-o" || argv[2] != "ProxyCommand="+proxy || argv[3] != "ops@win-a" {
+		t.Fatalf("argv = %#v", argv)
 	}
 }
 
