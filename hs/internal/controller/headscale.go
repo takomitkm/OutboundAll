@@ -69,21 +69,49 @@ func (h *Headscale) CreatePreAuthKey() (string, error) {
 	return parsed.Key, nil
 }
 
-// ExpireNode blocks reconnection for a node by hostname (best effort: the
-// node may not exist in headscale yet -- that is not an error here).
+// ExpireNode blocks reconnection for a node by hostname. headscale 0.29's
+// --identifier wants the numeric id (hostname forms are unreliable), so the
+// id is resolved from the node list first. A node absent from headscale
+// (registered but never connected) is not an error.
 func (h *Headscale) ExpireNode(hostname string) error {
 	if h.BinPath == "" {
 		return ErrNotImplemented
 	}
-	out, code, err := h.cli("nodes", "expire", "--identifier", hostname)
+	raw, err := h.ListNodes()
+	if err != nil {
+		return fmt.Errorf("nodes list before expire: %w", err)
+	}
+	id, found := nodeIDByHostname(raw, hostname)
+	if !found {
+		return nil
+	}
+	out, code, _ := h.cli("nodes", "expire", "--identifier", id)
 	if code != 0 {
-		if strings.Contains(out, "not found") {
-			return nil
-		}
 		return fmt.Errorf("nodes expire %s (exit %d): %s", hostname, code, out)
 	}
-	_ = err
 	return nil
+}
+
+// nodeIDByHostname extracts the numeric id from a `nodes list -o json` body.
+func nodeIDByHostname(raw, hostname string) (string, bool) {
+	i := strings.Index(raw, "[")
+	if i < 0 {
+		return "", false
+	}
+	var nodes []struct {
+		ID       string `json:"id"`
+		Hostname string `json:"hostname"`
+		Name     string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(raw[i:]), &nodes); err != nil {
+		return "", false
+	}
+	for _, n := range nodes {
+		if n.Hostname == hostname || n.Name == hostname || strings.HasPrefix(n.Hostname, hostname) || strings.HasPrefix(n.Name, hostname) {
+			return n.ID, true
+		}
+	}
+	return "", false
 }
 
 // ListNodes returns the raw headscale nodes JSON (used by health/status).
