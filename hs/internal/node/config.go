@@ -26,6 +26,15 @@ const DefaultForwarding = false
 
 var hostnameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
+// Service is one loopback service the node exposes to the tailnet (ADR-005):
+// tailnet-side port == target port, target must be a 127.0.0.1 literal.
+// Exposure is the AND of (a) this node-side allow and (b) a headscale grant
+// for the port (who may dial it).
+type Service struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+}
+
 // SSHServer mirrors the sing-box ssh_server object we generate.
 type SSHServer struct {
 	Enabled           bool `json:"enabled"`
@@ -48,6 +57,11 @@ type Config struct {
 	// Forwarding enables the sing-box SSH forwarding surface. Default OFF
 	// (ADR-005): turning it on is an explicit per-node profile decision.
 	Forwarding bool `json:"forwarding"`
+
+	// Services lists loopback services exposed to the tailnet (Phase 6).
+	// Empty = nothing forwarded (the route engine rejects all tailnet
+	// inbound except the ssh_server's own :22).
+	Services []Service `json:"services,omitempty"`
 
 	StateDir string `json:"state_dir"`
 	// TestAllowHTTP permits plain-http control plane URLs; CI-only escape
@@ -80,7 +94,44 @@ func (c *Config) Validate() error {
 	} else if !c.SSHServer.DisableForwarding {
 		return fmt.Errorf("forwarding=false requires ssh_server.disable_forwarding=true (deny posture)")
 	}
+	seen := map[string]bool{}
+	seenPort := map[int]bool{}
+	for _, svc := range c.Services {
+		if !hostnameRe.MatchString(svc.Name) || seen[svc.Name] {
+			return fmt.Errorf("service name %q invalid or duplicate", svc.Name)
+		}
+		seen[svc.Name] = true
+		host, portStr, ok := strings.Cut(svc.Target, ":")
+		if !ok || host != "127.0.0.1" {
+			return fmt.Errorf("service %s target %q must be a 127.0.0.1:PORT literal (loopback invariant)", svc.Name, svc.Target)
+		}
+		port := 0
+		for _, r := range portStr {
+			if r < '0' || r > '9' {
+				return fmt.Errorf("service %s target port %q invalid", svc.Name, portStr)
+			}
+			port = port*10 + int(r-'0')
+		}
+		if port < 1 || port > 65535 || seenPort[port] {
+			return fmt.Errorf("service %s port %d out of range or duplicate", svc.Name, port)
+		}
+		seenPort[port] = true
+	}
 	return nil
+}
+
+// ServicePorts returns the tailnet-facing ports of the configured services.
+func (c *Config) ServicePorts() []int {
+	ports := make([]int, 0, len(c.Services))
+	for _, svc := range c.Services {
+		_, portStr, _ := strings.Cut(svc.Target, ":")
+		port := 0
+		for _, r := range portStr {
+			port = port*10 + int(r-'0')
+		}
+		ports = append(ports, port)
+	}
+	return ports
 }
 
 // Load reads and validates config.json from dir.
@@ -146,10 +197,46 @@ func (c *Config) singBoxDoc(authKey string) (string, error) {
 	if authKey != "" {
 		endpoint["auth_key"] = authKey
 	}
+
 	doc := map[string]any{
 		"log":       map[string]any{"level": "info"},
 		"endpoints": []any{endpoint},
 	}
+	// The tailnet inbound is deny-by-default ALWAYS: sing-box's bare default
+	// forwards any tailnet dial to loopback on the SAME port (CI-observed
+	// connect-then-close on :8443), which is arbitrary loopback exposure --
+	// a security gap. Reject everything not explicitly allowed; the
+	// ssh_server's :22 is claimed by its tsnet listener before the router
+	// (verified by the e2e ssh probe with the reject rule live).
+	var outbounds []any
+	var rules []any
+	for _, svc := range c.Services {
+		_, portStr, _ := strings.Cut(svc.Target, ":")
+		port := 0
+		for _, r := range portStr {
+			port = port*10 + int(r-'0')
+		}
+		outbounds = append(outbounds, map[string]any{
+			"type": "direct",
+			"tag":  "srv-" + svc.Name,
+		})
+		// the endpoint remaps dials to the node's own tailnet IP to
+		// 127.0.0.1 before routing, so the direct outbound reaches the
+		// loopback service with no override
+		rules = append(rules, map[string]any{
+			"inbound":          []string{"ts"},
+			"destination_port": []int{port},
+			"outbound":         "srv-" + svc.Name,
+		})
+	}
+	rules = append(rules, map[string]any{
+		"inbound": []string{"ts"},
+		"action":  "reject",
+	})
+	if len(outbounds) > 0 {
+		doc["outbounds"] = outbounds
+	}
+	doc["route"] = map[string]any{"rules": rules}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return "", err
