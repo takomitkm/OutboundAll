@@ -81,6 +81,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          chmod +x scripts/build-matrix.sh   # committed as 100644, same as ci.yml does
           ./scripts/build-matrix.sh "$TAG"
           echo '--- dist ---'
           ls -l dist
