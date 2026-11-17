@@ -24,10 +24,22 @@ type binProc struct {
 	cmd *exec.Cmd
 }
 
+// kill stops the process GRACEFULLY first: hs-node's supervisor terminates
+// its sing-box child on SIGTERM, and a SIGKILL'd parent would orphan that
+// child -- an orphaned endpoint keeps its tailnet session alive (the G3
+// finding) and would mask revocation semantics.
 func (p *binProc) kill(t *testing.T) {
-	if p.cmd.Process != nil {
+	if p.cmd.Process == nil {
+		return
+	}
+	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() { _ = p.cmd.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
 		_ = p.cmd.Process.Kill()
-		_ = p.cmd.Wait()
+		<-done
 	}
 }
 
