@@ -30,8 +30,10 @@ type NodeView struct {
 }
 
 // Render produces the headscale policy JSON (huJSON, trailing comments ok).
-// deny-by-default is structural: no node without the SSH tag gets any rule.
-func Render(nodes []NodeView) string {
+// owner names the headscale user allowed to manage the dialhome tags
+// (policy v2 rejects tags without owners -- CI-proven). deny-by-default is
+// structural: no node without the SSH tag gets any rule.
+func Render(nodes []NodeView, owner string) string {
 	var sshNodes []string
 	for _, n := range nodes {
 		if n.SSH {
@@ -39,9 +41,19 @@ func Render(nodes []NodeView) string {
 		}
 	}
 	sort.Strings(sshNodes)
+	if owner == "" {
+		owner = "ci"
+	}
 
 	var b strings.Builder
 	b.WriteString("{\n")
+	// tag ownership: headscale rejects policies that reference undeclared
+	// tags, so every dialhome tag is declared with exactly one owner
+	b.WriteString(`  "tagOwners": {` + "\n")
+	b.WriteString(`    ` + quote(TagController) + `: [` + quote(owner) + `],` + "\n")
+	b.WriteString(`    ` + quote(TagNode) + `: [` + quote(owner) + `],` + "\n")
+	b.WriteString(`    ` + quote(TagNodeSSH) + `: [` + quote(owner) + `]` + "\n")
+	b.WriteString(`  },` + "\n")
 	// deny-by-default baseline: an explicitly EMPTY grants array means
 	// "no data-plane reachability unless something else grants it".
 	// (Headscale docs: omitted/absent section == allow-all -- do NOT omit.)

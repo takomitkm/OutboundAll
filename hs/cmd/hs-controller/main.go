@@ -165,6 +165,7 @@ func cmdServe(args []string) int {
 		Server:        *serverURL,
 		Headscale:     hs,
 		ReloadPolicy:  reload,
+		PolicyOwner:   *hsUser,
 	})
 	if err := listenAndServe(*listen, srv.Handler()); err != nil {
 		fatal("serve: %v", err)

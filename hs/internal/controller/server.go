@@ -32,6 +32,8 @@ type Options struct {
 	Headscale HeadscaleAPI
 	// policy reload hook (nil = policy management disabled)
 	ReloadPolicy PolicyReloader
+	// headscale user that owns the dialhome tags (tagOwners)
+	PolicyOwner string
 	// redeem attempts per window per IP
 	RateLimit  int
 	RateWindow time.Duration
@@ -57,7 +59,7 @@ func (s *Server) syncPolicy() error {
 	for _, n := range nodes {
 		views = append(views, authz.NodeView{Hostname: n.Hostname, SSH: n.SSHEnabled()})
 	}
-	return s.opt.ReloadPolicy(authz.Render(views))
+	return s.opt.ReloadPolicy(authz.Render(views, s.opt.PolicyOwner))
 }
 
 type rateBucket struct {
