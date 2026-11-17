@@ -235,10 +235,14 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, ma
 		if err := relay.WriteWithBackup(akPath, relay.Render(entries)); err != nil {
 			return err
 		}
+		// self-declaring: the node re-derives the public half from the
+		// container's seed and compares it against public_key_openssh before
+		// the one-shot credential is spent (the swapped-half incident)
 		doc := map[string]any{
 			"credential_version":      1,
 			"node_name":               name,
 			"private_key_openssh_b64": base64.StdEncoding.EncodeToString([]byte(kp.Private)),
+			"public_key_openssh":      kp.Public.Line(),
 			"manager_pubkey":          managerPub,
 			"ports_ssh":               n.Ports.SSH,
 			"ports_app":               n.Ports.App,

@@ -3,7 +3,9 @@ package crypto
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"strings"
 	"testing"
 )
@@ -89,11 +91,45 @@ func TestVerifyKeyPairAcceptsGenerated(t *testing.T) {
 	}
 }
 
-// TestVerifyKeyPairRejectsMismatchedHalves pins the incident shape: a container
-// whose public half comes from a different key. It is still a loadable key file,
-// ssh still offers it, and the relay can only answer "Permission denied
-// (publickey)" -- after the single-use credential has been spent.
-func TestVerifyKeyPairRejectsMismatchedHalves(t *testing.T) {
+// assembleMismatched builds a container out of explicitly given halves. The
+// mint can no longer produce this shape (fromSeed takes one seed and derives
+// the public half), so the verify-side tests assemble it raw -- it remains the
+// incident shape: a loadable key file whose halves disagree, offerable by ssh,
+// answered only by "Permission denied (publickey)" after the single-use
+// credential is spent.
+func assembleMismatched(priv ed25519.PrivateKey, pub ed25519.PublicKey, comment string) string {
+	pubBlobW := pubBlob(pub)
+	var check [4]byte
+	if _, err := rand.Read(check[:]); err != nil {
+		panic(err)
+	}
+	var sec bytes.Buffer
+	writeUint32(&sec, binary.LittleEndian.Uint32(check[:]))
+	writeUint32(&sec, binary.LittleEndian.Uint32(check[:]))
+	writeString(&sec, []byte(keyTypeName))
+	writeString(&sec, pub)
+	writeString(&sec, priv)
+	writeString(&sec, []byte(comment))
+	for pad := byte(1); sec.Len()%8 != 0; pad++ {
+		sec.WriteByte(pad)
+	}
+	var w bytes.Buffer
+	w.WriteString(magic)
+	writeString(&w, []byte("none"))
+	writeString(&w, []byte("none"))
+	writeString(&w, nil)
+	writeUint32(&w, 1)
+	writeString(&w, pubBlobW)
+	writeString(&w, sec.Bytes())
+	return armour(w.Bytes())
+}
+
+// TestVerifyPrivateKeyRejectsMismatchedHalves pins the incident shape: a
+// container whose public half comes from a different key. It is still a
+// loadable key file, ssh still offers it, and the relay can only answer
+// "Permission denied (publickey)" -- after the single-use credential has been
+// spent.
+func TestVerifyPrivateKeyRejectsMismatchedHalves(t *testing.T) {
 	a, err := Generate("a")
 	if err != nil {
 		t.Fatal(err)
@@ -102,11 +138,8 @@ func TestVerifyKeyPairRejectsMismatchedHalves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	broken, err := fromSeed(a.Seed, ed25519.PublicKey(b.Seed[32:]), "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = VerifyKeyPair(broken)
+	broken := assembleMismatched(a.Seed, ed25519.PublicKey(b.Seed[32:]), "a")
+	err = VerifyPrivateKey(broken, nil)
 	if err == nil {
 		t.Fatal("container built from mismatched halves must be rejected")
 	}
@@ -125,11 +158,8 @@ func TestVerifyPrivateKeyRejectsTamperedSeed(t *testing.T) {
 	tampered := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
 	copy(tampered, a.Seed)
 	tampered[0] ^= 0xff // seed no longer derives the stored public half
-	kp, err := fromSeed(tampered, ed25519.PublicKey(a.Seed[32:]), "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := VerifyKeyPair(kp); err == nil {
+	broken := assembleMismatched(tampered, ed25519.PublicKey(a.Seed[32:]), "a")
+	if err := VerifyPrivateKey(broken, nil); err == nil {
 		t.Fatal("private key whose seed disagrees with its stored public key must be rejected")
 	}
 }

@@ -56,6 +56,7 @@ type credentialDoc struct {
 	CredentialVersion    int    `json:"credential_version"`
 	NodeName             string `json:"node_name"`
 	PrivateKeyOpenSSHB64 string `json:"private_key_openssh_b64"`
+	PublicKeyOpenSSH     string `json:"public_key_openssh,omitempty"`
 	ManagerPubkey        string `json:"manager_pubkey"`
 	ExpiresAt            string `json:"expires_at"`
 	PortsSSH             int    `json:"ports_ssh,omitempty"`
@@ -188,12 +189,24 @@ func nodeInstall(np nodePaths, args []string) error {
 		if derr != nil {
 			return fmt.Errorf("credential key: %w", derr)
 		}
-		// Self-check BEFORE the one-shot ssh: a container whose public half does
-		// not match its seed is offered by ssh and rejected by the relay as a bare
-		// "Permission denied (publickey)", which costs the credential and names
-		// neither half. Fail locally, with something actionable, instead.
-		if err := crypto.VerifyPrivateKey(string(raw), nil); err != nil {
-			return fmt.Errorf("%w: credential private key is self-inconsistent (%v) — ask the controller to re-issue it",
+		// Self-check BEFORE the one-shot ssh, on two layers: the container's
+		// own three public-key copies must agree, and -- when the credential
+		// declares its public half -- the container must match that declared
+		// line. A JSON whose halves were swapped in transit (the incident: the
+		// relay mint is consistent, the shipped credential was not) is caught
+		// here locally instead of costing the single-use credential to a bare
+		// "Permission denied (publickey)".
+		want := []byte(nil)
+		if cred.PublicKeyOpenSSH != "" {
+			line, perr := crypto.ParsePublicKeyLine(cred.PublicKeyOpenSSH)
+			if perr != nil {
+				return fmt.Errorf("%w: credential declares an unparseable public_key_openssh (%v) — ask the controller to re-issue it",
+					errs.ErrUsage, perr)
+			}
+			want = line.Blob
+		}
+		if err := crypto.VerifyPrivateKey(string(raw), want); err != nil {
+			return fmt.Errorf("%w: credential private key is self-inconsistent or does not match its declared public half (%v) — ask the controller to re-issue it",
 				errs.ErrUsage, err)
 		}
 		if err := os.WriteFile(credKey, raw, 0o600); err != nil {

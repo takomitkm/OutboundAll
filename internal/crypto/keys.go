@@ -52,17 +52,27 @@ func (a AuthorizedKey) Fingerprint() string {
 
 // Generate creates a fresh key pair with the given comment.
 func Generate(comment string) (KeyPair, error) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
+	seed := make([]byte, ed25519.SeedSize)
+	if _, err := rand.Read(seed); err != nil {
 		return KeyPair{}, fmt.Errorf("keygen: %w", err)
 	}
-	return fromSeed(priv, pub, comment)
+	return fromSeed(seed, comment)
 }
 
-func fromSeed(priv ed25519.PrivateKey, pub ed25519.PublicKey, comment string) (KeyPair, error) {
-	if len(priv) != ed25519.PrivateKeySize {
-		return KeyPair{}, errors.New("crypto: bad seed size")
+// fromSeed builds the pair from a 32-byte seed. The public half is DERIVED:
+// the previous signature took priv and pub as independent parameters, which
+// made a mismatched assembly representable at the mint (the credential
+// incident: a shipped container advertised a different public half than its
+// seed, and the node could only discover it after the one-shot credential was
+// spent). One parameter makes that state unconstructible here; verification
+// remains for EXTERNAL artifacts (credentials received over the wire) via
+// VerifyPrivateKey / parsePrivateKey.
+func fromSeed(seed []byte, comment string) (KeyPair, error) {
+	if len(seed) != ed25519.SeedSize {
+		return KeyPair{}, fmt.Errorf("crypto: seed is %d bytes, expected %d", len(seed), ed25519.SeedSize)
 	}
+	priv := ed25519.NewKeyFromSeed(seed)
+	pub := priv.Public().(ed25519.PublicKey)
 	pubBlob := pubBlob(pub)
 	var check [4]byte
 	if _, err := rand.Read(check[:]); err != nil {
