@@ -225,7 +225,7 @@ func (c *Config) singBoxDoc(authKey string) (string, error) {
 		// loopback service with no override
 		rules = append(rules, map[string]any{
 			"inbound":          []string{"ts"},
-			"destination_port": []int{port},
+			"port": []int{port},
 			"outbound":         "srv-" + svc.Name,
 		})
 	}
