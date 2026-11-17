@@ -224,9 +224,9 @@ func (c *Config) singBoxDoc(authKey string) (string, error) {
 		// 127.0.0.1 before routing, so the direct outbound reaches the
 		// loopback service with no override
 		rules = append(rules, map[string]any{
-			"inbound":          []string{"ts"},
-			"port": []int{port},
-			"outbound":         "srv-" + svc.Name,
+			"inbound":  []string{"ts"},
+			"port":     []int{port},
+			"outbound": "srv-" + svc.Name,
 		})
 	}
 	rules = append(rules, map[string]any{
