@@ -48,11 +48,14 @@ func Render(nodes []NodeView, owner string) string {
 	var b strings.Builder
 	b.WriteString("{\n")
 	// tag ownership: headscale rejects policies that reference undeclared
-	// tags, so every dialhome tag is declared with exactly one owner
+	// tags, so every dialhome tag is declared with exactly one owner.
+	// headscale policy v2 Username syntax REQUIRES a trailing "@" when the
+	// login name does not naturally contain one (types.go isUser = Contains
+	// "@"; resolveUser trims the suffix before matching the user name).
 	b.WriteString(`  "tagOwners": {` + "\n")
-	b.WriteString(`    ` + quote(TagController) + `: [` + quote(owner) + `],` + "\n")
-	b.WriteString(`    ` + quote(TagNode) + `: [` + quote(owner) + `],` + "\n")
-	b.WriteString(`    ` + quote(TagNodeSSH) + `: [` + quote(owner) + `]` + "\n")
+	b.WriteString(`    ` + quote(owner+"@") + `: [` + quote(owner+"@") + `],` + "\n")
+	b.WriteString(`    ` + quote(TagNode) + `: [` + quote(owner+"@") + `],` + "\n")
+	b.WriteString(`    ` + quote(TagNodeSSH) + `: [` + quote(owner+"@") + `]` + "\n")
 	b.WriteString(`  },` + "\n")
 	// deny-by-default baseline: an explicitly EMPTY grants array means
 	// "no data-plane reachability unless something else grants it".
