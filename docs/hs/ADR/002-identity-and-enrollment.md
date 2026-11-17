@@ -22,4 +22,4 @@
 - preauth key 短命且单用，泄露窗口极小（N2'）。
 - 节点身份持久化依赖 state 目录完整性 → N12'（损坏显式失败，不静默重生成）。
 - G5 证据（run 128b5f4）：**身份持久成立**——重启后同一 node id（无重复节点）；但 sing-box/tsnet **每次启动都需要 auth_key 才能恢复登录**（无 key 时进入 Waiting-for-authentication，state 目录里 tailscaled.state 明明存在）。
-- **设计注记**：hs-controller 必须提供「resume-key」通道——节点每次启动时以某种可验证身份（注册时下发的节点密钥）向 hs-controller 换取一个短期 single-use preauth key。这不破坏三身份分离（resume key ≠ 邀请码 ≠ preauth key 本体），但把「登记一次性」的语义精确化为「登记身份一次性 + 启动恢复走受控通道」。已在 ADR-002 登记，Phase 3 实现时落实。
+- **设计注记（已实现，run 74cb225 实证）**：hs-controller 提供了「resume-key」通道——`POST /api/v1/nodes/resume {hostname, node_secret}` 每次启动换一个短期 single-use preauth key。node secret 是登记时下发、节点侧 0600 落盘的机器凭据（服务端只存哈希）；能力只有「给自己换 key」一条。三身份分离保持：邀请码 ≠ node secret ≠ preauth key。**G5 real path PASS**：hs-node run 经 resume 通道重启后同一 headscale node id（无重复）；撤销后 resume 403（N6'/N7' PASS）。
