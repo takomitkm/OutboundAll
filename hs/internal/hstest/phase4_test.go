@@ -150,12 +150,12 @@ log:
 	ctrlKey := jsonKey(t, out, "key")
 	startBin(t, "tailscaled4", nil, tsdBin,
 		"--tun=userspace-networking",
-		"--statedir=" + me("ctrl"),
-		"--socket=" + me("ctrl/ts.sock"))
+		"--statedir="+me("ctrl"),
+		"--socket="+me("ctrl/ts.sock"))
 	sockArg := "--socket=" + me("ctrl/ts.sock")
 	if out, code := runBin(t, nil, tsBin, sockArg, "up",
 		"--login-server=http://127.0.0.1:8080",
-		"--authkey=" + ctrlKey,
+		"--authkey="+ctrlKey,
 		"--hostname=ctrl",
 		"--accept-dns=false"); code != 0 {
 		t.Fatalf("ctrl tailscale up failed: %s", out)
