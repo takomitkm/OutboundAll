@@ -11,12 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/takomitkm/dialhome/hs/internal/authz"
 )
 
 // HeadscaleAPI is the control-plane capability hs-controller needs; concrete
 // *Headscale drives the CLI, tests use a fake.
 type HeadscaleAPI interface {
-	CreatePreAuthKey() (string, error)
+	CreatePreAuthKey(tags []string) (string, error)
 	ExpireNode(hostname string) error
 }
 
@@ -147,8 +149,8 @@ func (s *Store) Redeem(code, hostname string, hs HeadscaleAPI, serverURL string)
 		if err != nil {
 			return err
 		}
-		// mint the single-use preauth key through headscale
-		key, err := hs.CreatePreAuthKey()
+		// mint the single-use preauth key through headscale, tagged per profile
+		key, err := hs.CreatePreAuthKey(authz.TagsForProfile(inv.Profile))
 		if err != nil {
 			return fmt.Errorf("headscale preauth key: %w", err)
 		}
@@ -194,7 +196,7 @@ func (s *Store) Resume(hostname, secret string, hs HeadscaleAPI) (string, error)
 		if node.NodeSecretSHA != shaHex(secret) {
 			return ErrBadSecret
 		}
-		k, err := hs.CreatePreAuthKey()
+		k, err := hs.CreatePreAuthKey(authz.TagsForProfile(node.Profile))
 		if err != nil {
 			return fmt.Errorf("headscale preauth key: %w", err)
 		}

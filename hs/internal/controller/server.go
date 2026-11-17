@@ -10,11 +10,18 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net"
+
+	"github.com/takomitkm/dialhome/hs/internal/authz"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 )
+
+// PolicyReloader applies a freshly rendered policy (write file + reload
+// headscale). Implementation lives on the VPS: write the file headscale
+// serves from, then signal headscale to re-read it.
+type PolicyReloader func(policyJSON string) error
 
 // Options configures the API server.
 type Options struct {
@@ -23,6 +30,8 @@ type Options struct {
 	// control plane URL handed to nodes
 	Server    string
 	Headscale HeadscaleAPI
+	// policy reload hook (nil = policy management disabled)
+	ReloadPolicy PolicyReloader
 	// redeem attempts per window per IP
 	RateLimit  int
 	RateWindow time.Duration
@@ -34,6 +43,21 @@ type Server struct {
 	opt   Options
 	mu    sync.Mutex
 	hits  map[string]*rateBucket
+}
+
+// syncPolicy renders the current authorization state and hands it to the
+// reloader. Best effort on node-facing flows (registration is never blocked
+// by policy I/O); admin mutations surface the failure.
+func (s *Server) syncPolicy() error {
+	if s.opt.ReloadPolicy == nil {
+		return nil
+	}
+	nodes, _ := s.store.Snapshot()
+	views := make([]authz.NodeView, 0, len(nodes))
+	for _, n := range nodes {
+		views = append(views, authz.NodeView{Hostname: n.Hostname, SSH: n.SSHEnabled()})
+	}
+	return s.opt.ReloadPolicy(authz.Render(views))
 }
 
 type rateBucket struct {
@@ -196,6 +220,10 @@ func (s *Server) handleRedeem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.store.Redeem(req.Code, req.Hostname, s.opt.Headscale, s.opt.Server)
+	if err == nil {
+		// a new node joined: refresh the deny-by-default policy (best effort)
+		_ = s.syncPolicy()
+	}
 	if err != nil {
 		status := 400
 		switch err {
@@ -238,7 +266,16 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		httpError(w, 400, "bad JSON: "+err.Error())
 		return
 	}
+	wasPending := false
+	if n, ok := s.store.Node(req.Hostname); ok && n.State == NodePending {
+		wasPending = true
+	}
 	key, err := s.store.Resume(req.Hostname, req.NodeSecret, s.opt.Headscale)
+	if err == nil && wasPending {
+		// first contact: the node's tags are now live in headscale -- policy
+		// refresh makes its authorization deterministic (best effort)
+		_ = s.syncPolicy()
+	}
 	if err != nil {
 		status := 400
 		switch err {
@@ -278,6 +315,12 @@ func (s *Server) handleNodeOne(w http.ResponseWriter, r *http.Request) {
 			status = 404
 		}
 		httpError(w, status, err.Error())
+		return
+	}
+	if err := s.syncPolicy(); err != nil {
+		// revocation already applied at headscale (expire); a failed policy
+		// reload must be visible to the admin, not swallowed
+		httpError(w, 500, "node revoked but policy reload failed: "+err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]string{"revoked": id})

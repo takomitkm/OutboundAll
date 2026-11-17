@@ -43,15 +43,19 @@ func (h *Headscale) cli(args ...string) (string, int, error) {
 }
 
 // CreatePreAuthKey mints a single-use key with a short expiry for the
-// configured user.
-func (h *Headscale) CreatePreAuthKey() (string, error) {
+// configured user, tagging the registered node (ADR-003 per-node authz).
+func (h *Headscale) CreatePreAuthKey(tags []string) (string, error) {
 	if h.BinPath == "" {
 		return "", ErrNotImplemented
 	}
-	out, code, err := h.cli("preauthkeys", "create",
+	args := []string{"preauthkeys", "create",
 		"--user", fmt.Sprint(h.UserID),
-		"--expiration", "1h",
-		"-o", "json")
+		"--expiration", "1h"}
+	if len(tags) > 0 {
+		args = append(args, "--tags", strings.Join(tags, ","))
+	}
+	args = append(args, "-o", "json")
+	out, code, err := h.cli(args...)
 	if code != 0 || err != nil {
 		return "", fmt.Errorf("preauthkeys create (exit %d): %s", code, out)
 	}
@@ -160,14 +164,16 @@ type FakeHeadscale struct {
 	Keys       []string
 	FailNext   error
 	Expired    []string
+	Tags       [][]string
 }
 
-func (f *FakeHeadscale) CreatePreAuthKey() (string, error) {
+func (f *FakeHeadscale) CreatePreAuthKey(tags []string) (string, error) {
 	if f.FailNext != nil {
 		err := f.FailNext
 		f.FailNext = nil
 		return "", err
 	}
+	f.Tags = append(f.Tags, tags)
 	f.Keys = append(f.Keys, fmt.Sprintf("fake-key-%d", len(f.Keys)+1))
 	return f.Keys[len(f.Keys)-1], nil
 }

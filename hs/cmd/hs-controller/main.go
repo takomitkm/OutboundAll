@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ func run(args []string) int {
 func usage() {
 	fmt.Fprint(os.Stderr, `usage:
   hs-controller init
-  hs-controller serve [--listen 127.0.0.1:8800]
+  hs-controller serve [--listen 127.0.0.1:8800] [--policy-file PATH]
   hs-controller invite create [--label L] [--profile P] [--ttl-hours H]
   hs-controller invite revoke <id> | list
   hs-controller node list | revoke <id>
@@ -127,6 +128,7 @@ func cmdServe(args []string) int {
 	hsCfg := fs.String("headscale-config", "/etc/headscale/config.yaml", "headscale config path")
 	hsUser := fs.String("headscale-user", "ci", "headscale user name")
 	serverURL := fs.String("server", "", "control plane URL handed to nodes (default: derive from headscale config)")
+	policyFile := fs.String("policy-file", "", "headscale policy path hs-controller owns (deny-by-default ADR-003); empty disables policy management")
 	if err := fs.Parse(args); err != nil {
 		return errs.ExitUsage
 	}
@@ -139,10 +141,30 @@ func cmdServe(args []string) int {
 		fatal("resolve headscale user: %v", err)
 	}
 	fmt.Println("CONTROLLER-READY", *listen, "user-id", hs.UserID)
+	reload := func(policyJSON string) error { return nil }
+	if *policyFile != "" {
+		reload = func(policyJSON string) error {
+			tmp := *policyFile + ".tmp"
+			if err := os.WriteFile(tmp, []byte(policyJSON), 0o644); err != nil {
+				return err
+			}
+			if err := os.Rename(tmp, *policyFile); err != nil {
+				return err
+			}
+			// headscale re-reads the policy on SIGHUP; same-user deployment
+			// (deploy docs pair headscale + hs-controller under one account)
+			out, err := runHUP()
+			if err != nil {
+				return fmt.Errorf("signal headscale: %v: %s", err, out)
+			}
+			return nil
+		}
+	}
 	srv := controller.NewServer(s, controller.Options{
 		AdminTokenSHA: s.AdminTokenSHA(),
 		Server:        *serverURL,
 		Headscale:     hs,
+		ReloadPolicy:  reload,
 	})
 	if err := listenAndServe(*listen, srv.Handler()); err != nil {
 		fatal("serve: %v", err)
@@ -270,6 +292,19 @@ func cmdAudit(args []string) int {
 	}
 	tok := adminTokenForCLI()
 	return apiCall("GET", apiURL(api)+"/api/v1/audit", tok, nil)
+}
+
+// runHUP sends SIGHUP to the headscale process (best-effort process lookup).
+func runHUP() (string, error) {
+	out, err := exec.Command("pidof", "headscale").CombinedOutput()
+	if err != nil {
+		return string(out), err
+	}
+	pid := strings.TrimSpace(string(out))
+	if pid == "" {
+		return string(out), fmt.Errorf("headscale pid not found")
+	}
+	return "", exec.Command("kill", "-HUP", pid).Run()
 }
 
 func listenAndServe(listen string, h http.Handler) error {

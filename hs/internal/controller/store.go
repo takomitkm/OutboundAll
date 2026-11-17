@@ -252,3 +252,9 @@ func (s *Store) Node(id string) (*NodeRecord, bool) {
 	n, ok := s.data.Nodes[id]
 	return n, ok
 }
+
+// SSHEnabled reports whether the node's profile grants controller SSH access
+// (ADR-003: per-node, deny-by-default). "no-ssh" is the opt-out.
+func (n *NodeRecord) SSHEnabled() bool {
+	return n != nil && n.State != NodeRevoked && n.Profile != "no-ssh"
+}
