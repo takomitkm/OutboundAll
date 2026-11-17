@@ -235,16 +235,23 @@ log:
 		if strings.TrimSpace(line) != "INVITATION-CODE (one-time, shown once):" {
 			continue
 		}
-		// apiCall prints the serve's JSON body on the next line(s)
+		// hs-admin prints the bare code on the next non-empty line (the
+		// hs-controller CLI printed the serve JSON; both shapes accepted)
 		for _, l2 := range lines[i+1:] {
-			if !strings.Contains(l2, "\"code\"") {
-				continue
-			}
-			var parsed map[string]any
-			if err := json.Unmarshal([]byte(strings.TrimSpace(l2)), &parsed); err == nil {
-				inviteCode, _ = parsed["code"].(string)
+			l2 = strings.TrimSpace(l2)
+			if l2 == "" || strings.HasPrefix(l2, "ID ") {
 				break
 			}
+			if strings.Contains(l2, "\"code\"") {
+				var parsed map[string]any
+				if err := json.Unmarshal([]byte(l2), &parsed); err == nil {
+					inviteCode, _ = parsed["code"].(string)
+					break
+				}
+				continue
+			}
+			inviteCode = l2
+			break
 		}
 	}
 	if inviteCode == "" {
