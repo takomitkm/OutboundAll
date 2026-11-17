@@ -422,8 +422,12 @@ log:
 	}
 	time.Sleep(6 * time.Second) // policy reload + propagation
 
-	// G1 positive: ctrl -> node-c:8443 must return the service marker
-	svcOut, svcCode := runBin(t, nil, tsBin, sockArg, "nc", "node-c", "8443")
+	// G1 positive: ctrl -> node-c:8443 must return the service marker.
+	// tailscale nc copies stdin; runBin's /dev/null stdin EOFs the connection
+	// instantly and the marker is lost (CI-proven: exit 0, empty out) -- keep
+	// stdin open with a sleep pipe.
+	svcOut, svcCode := runBin(t, nil, "sh", "-c",
+		"sleep 3 | tailscale "+sockArg+" nc node-c 8443")
 	if svcCode != 0 || !strings.Contains(svcOut, "svc-8443-ok") {
 		t.Fatalf("G1 FAILED: tailnet:8443 did not reach the loopback service (exit %d, out=%q)", svcCode, svcOut)
 	}
