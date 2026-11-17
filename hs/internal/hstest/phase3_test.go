@@ -104,7 +104,8 @@ func TestPhase3Chain(t *testing.T) {
 	}
 	ctlBin := filepath.Join(repo, ".e2e-deps", "hs-controller")
 	nodeBin := filepath.Join(repo, ".e2e-deps", "hs-node")
-	for _, b := range []string{ctlBin, nodeBin} {
+	adminBin := filepath.Join(repo, ".e2e-deps", "hs-admin")
+	for _, b := range []string{ctlBin, nodeBin, adminBin} {
 		pkg := filepath.Join(repo, "hs", "cmd", filepath.Base(b))
 		build, code := runBin(t, nil, "go", "build", "-o", b, pkg)
 		_ = build
@@ -220,8 +221,11 @@ log:
 		t.Fatal(err)
 	}
 
-	// invite create via CLI
-	out, code = runBin(t, ctlEnv, ctlBin, "invite", "create", "--api", "http://127.0.0.1:8801", "--label", "e2e")
+	// invite create via the OPERATOR CLI (hs-admin), not the controller CLI:
+	// the hs-controller CLI is its own thin API client; hs-admin is what an
+	// operator on another machine would run
+	out, code = runBin(t, ctlEnv, adminBin, "invite", "create",
+		"--api", "http://127.0.0.1:8801", "--token", adminTok, "--label", "e2e")
 	if code != 0 {
 		t.Fatalf("invite create failed: %s", out)
 	}
@@ -329,15 +333,11 @@ log:
 	t.Logf("GATE G5 (real path): resume via hs-controller kept node id %d, no duplicates", nodeAID)
 
 	// ---- revocation: API revoke -> resume blocked -> node cannot return ----
-	revReq, _ := http.NewRequest("POST", "http://127.0.0.1:8801/api/v1/nodes/node-a/revoke", nil)
-	revReq.Header.Set("Authorization", "Bearer "+adminTok)
-	revResp, err := http.DefaultClient.Do(revReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	revResp.Body.Close()
-	if revResp.StatusCode != 200 {
-		t.Fatalf("revoke = %d", revResp.StatusCode)
+	// revoke via the operator CLI as well
+	revOut, revCode := runBin(t, ctlEnv, adminBin, "node", "revoke",
+		"--api", "http://127.0.0.1:8801", "--token", adminTok, "node-a")
+	if revCode != 0 {
+		t.Fatalf("revoke via hs-admin failed: %s", revOut)
 	}
 	run2.kill(t)
 	run3 := startBin(t, "hs-node-run3", nodeEnv, nodeBin, "run")
