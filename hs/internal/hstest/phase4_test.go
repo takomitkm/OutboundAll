@@ -378,9 +378,9 @@ log:
 	// -- here the runner itself). The node route engine must forward
 	// tailnet:8443 -> 127.0.0.1:8443 only for the explicit service, reject
 	// everything else, and leave ssh_server:22 working.
-	svc := net.Listen("tcp", "127.0.0.1:8443")
-	if svc == nil {
-		t.Fatal("cannot bind the loopback service")
+	svc, svcErr := net.Listen("tcp", "127.0.0.1:8443")
+	if svcErr != nil {
+		t.Fatal(svcErr)
 	}
 	t.Cleanup(func() { svc.Close() })
 	go func() {
@@ -446,7 +446,7 @@ log:
 	// ssh_server:22 must SURVIVE the reject-all rule (its tsnet listener
 	// claims :22 before the router sees the connection)
 	sshAfterOut, sshAfterCode := runBin(t, nil, tsBin, sockArg,
-		"ssh", username+"@node-c", "echo ssh-survives-reject")
+		"ssh", "ci@node-c", "echo ssh-survives-reject")
 	if sshAfterCode != 0 || !strings.Contains(sshAfterOut, "ssh-survives-reject") {
 		t.Fatalf("G1 FAILED: ssh_server died under the reject-all rule (exit %d, out=%q)", sshAfterCode, sshAfterOut)
 	}
