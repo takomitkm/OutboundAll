@@ -130,7 +130,11 @@ func nodeInstall(np nodePaths, args []string) error {
 		if zip == "" {
 			zip = filepath.Join(np.OpenSSH, "OpenSSH-Win64.zip")
 		}
-		if err := openssh.EnsureWindowsPackage(np.OpenSSH, zip, cred); err != nil {
+		// sshArgs is "" on purpose: before enrollment this node holds only the
+		// one-shot credential, whose forced command is `enroll`, so nothing can
+		// serve `get openssh` yet. Fetch's error names the two ways out
+		// (--openssh-zip, or a mirror via openssh.MirrorEnv).
+		if err := openssh.EnsureWindowsPackage(np.OpenSSH, zip, ""); err != nil {
 			return fmt.Errorf("openssh package: %w", err)
 		}
 		sshExe = filepath.Join(np.OpenSSH, "OpenSSH-Win64", "ssh.exe")
@@ -183,6 +187,14 @@ func nodeInstall(np nodePaths, args []string) error {
 		raw, derr := base64.StdEncoding.DecodeString(cred.PrivateKeyOpenSSHB64)
 		if derr != nil {
 			return fmt.Errorf("credential key: %w", derr)
+		}
+		// Self-check BEFORE the one-shot ssh: a container whose public half does
+		// not match its seed is offered by ssh and rejected by the relay as a bare
+		// "Permission denied (publickey)", which costs the credential and names
+		// neither half. Fail locally, with something actionable, instead.
+		if err := crypto.VerifyPrivateKey(string(raw), nil); err != nil {
+			return fmt.Errorf("%w: credential private key is self-inconsistent (%v) — ask the controller to re-issue it",
+				errs.ErrUsage, err)
 		}
 		if err := os.WriteFile(credKey, raw, 0o600); err != nil {
 			return err

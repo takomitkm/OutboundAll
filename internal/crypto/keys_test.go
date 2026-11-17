@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -73,6 +74,90 @@ func TestParseRejects(t *testing.T) {
 	}
 	if _, err := ParsePublicKeyLine("ssh-ed25519"); err == nil {
 		t.Fatal("body-less line must be rejected")
+	}
+}
+
+func TestVerifyKeyPairAcceptsGenerated(t *testing.T) {
+	for i := 0; i < 4; i++ {
+		kp, err := Generate("selfcheck")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := VerifyKeyPair(kp); err != nil {
+			t.Fatalf("generated pair failed its own self-check: %v", err)
+		}
+	}
+}
+
+// TestVerifyKeyPairRejectsMismatchedHalves pins the incident shape: a container
+// whose public half comes from a different key. It is still a loadable key file,
+// ssh still offers it, and the relay can only answer "Permission denied
+// (publickey)" -- after the single-use credential has been spent.
+func TestVerifyKeyPairRejectsMismatchedHalves(t *testing.T) {
+	a, err := Generate("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Generate("b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken, err := fromSeed(a.Seed, ed25519.PublicKey(b.Seed[32:]), "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = VerifyKeyPair(broken)
+	if err == nil {
+		t.Fatal("container built from mismatched halves must be rejected")
+	}
+	if !strings.Contains(err.Error(), "seed derives") {
+		t.Fatalf("error must name the mismatch, got: %v", err)
+	}
+}
+
+// TestVerifyPrivateKeyRejectsTamperedSeed covers the third copy of the public
+// key: the one implied by the trailing 32 bytes of the 64-byte private key.
+func TestVerifyPrivateKeyRejectsTamperedSeed(t *testing.T) {
+	a, err := Generate("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
+	copy(tampered, a.Seed)
+	tampered[0] ^= 0xff // seed no longer derives the stored public half
+	kp, err := fromSeed(tampered, ed25519.PublicKey(a.Seed[32:]), "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyKeyPair(kp); err == nil {
+		t.Fatal("private key whose seed disagrees with its stored public key must be rejected")
+	}
+}
+
+func TestVerifyPrivateKeyChecksExpectedBlob(t *testing.T) {
+	a, _ := Generate("a")
+	b, _ := Generate("b")
+	if err := VerifyPrivateKey(string(a.Private), a.Public.Blob); err != nil {
+		t.Fatalf("matching blob must pass: %v", err)
+	}
+	if err := VerifyPrivateKey(string(a.Private), b.Public.Blob); err == nil {
+		t.Fatal("a foreign blob must be rejected")
+	}
+}
+
+func TestVerifyPrivateKeyRejectsGarbage(t *testing.T) {
+	kp, _ := Generate("a")
+	cases := map[string]string{
+		"empty":      "",
+		"no markers": base64.StdEncoding.EncodeToString([]byte(magic)),
+		"bad base64": beginMarker + "\n!!!!\n" + endMarker,
+		"public line as private": beginMarker + "\n" +
+			base64.StdEncoding.EncodeToString([]byte(kp.Public.Line())) + "\n" + endMarker,
+	}
+	for name, in := range cases {
+		if err := VerifyPrivateKey(in, nil); err == nil {
+			t.Fatalf("%s: must be rejected", name)
+		}
 	}
 }
 

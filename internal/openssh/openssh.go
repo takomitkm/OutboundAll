@@ -26,13 +26,31 @@ type PinnedPackage struct {
 }
 
 // Current is the pinned Win32-OpenSSH 10.0.0.0p2-Preview package.
+//
+// The upstream release tag carries no leading "V" (the assets live under
+// ".../releases/download/10.0.0.0p2-Preview/"). Spelling it "V10.0.0.0p2-Preview"
+// returns 404, which reached users as "download failed and no relay fallback
+// configured" on every fresh Windows node.
 func Current() PinnedPackage {
 	return PinnedPackage{
-		URL:     "https://github.com/PowerShell/Win32-OpenSSH/releases/download/V10.0.0.0p2-Preview/OpenSSH-Win64.zip",
+		URL:     "https://github.com/PowerShell/Win32-OpenSSH/releases/download/10.0.0.0p2-Preview/OpenSSH-Win64.zip",
 		SHA256:  "23f50f3458c4c5d0b12217c6a5ddfde0137210a30fa870e98b29827f7b43aba5",
 		Size:    5704583,
-		Version: "V10.0.0.0p2-Preview",
+		Version: "10.0.0.0p2-Preview",
 	}
+}
+
+// MirrorEnv names an env var that overrides the download URL (a local mirror for
+// hosts that cannot reach github.com). The pinned SHA-256 still applies, so a
+// mirror cannot smuggle in a different build.
+const MirrorEnv = "DIALHOME_OPENSSH_URL"
+
+// sourceURL is the URL Fetch uses: the mirror override when set, else the pin.
+func sourceURL() string {
+	if v := strings.TrimSpace(os.Getenv(MirrorEnv)); v != "" {
+		return v
+	}
+	return Current().URL
 }
 
 // ErrHashMismatch is fatal (a tampered or truncated download must not be extracted).
@@ -56,15 +74,31 @@ func VerifyFile(path, want string) error {
 	return nil
 }
 
-// Fetch downloads the pinned package to dest, falling back to the relay helper.
+// Fetch downloads the pinned package to dest, falling back to the relay helper
+// (`ssh <helperSSHArgs> get openssh`) when the download URL is unreachable.
 func Fetch(dest, helperSSHArgs string) error {
-	if err := httpDownload(Current().URL, dest); err == nil {
+	return fetchFrom(sourceURL(), dest, helperSSHArgs)
+}
+
+// fetchFrom is Fetch with the URL spelled out, so the fallback path is reachable
+// in a test without touching the network.
+func fetchFrom(url, dest, helperSSHArgs string) error {
+	httpErr := httpDownload(url, dest)
+	if httpErr == nil {
 		return nil
 	}
 	if helperSSHArgs == "" {
-		return fmt.Errorf("openssh: download failed and no relay fallback configured")
+		// No channel can serve `get openssh` here (a node before enrollment only
+		// has the one-shot credential, whose forced command is `enroll`), so name
+		// the two escapes the user actually has instead of a dead end.
+		return fmt.Errorf("openssh: download of %s failed (%v); no relay fallback in this context: "+
+			"re-run with --openssh-zip <pre-downloaded OpenSSH-Win64.zip> or point %s at a reachable mirror",
+			url, httpErr, MirrorEnv)
 	}
-	return helperPull(helperSSHArgs, dest)
+	if err := helperPull(helperSSHArgs, dest); err != nil {
+		return fmt.Errorf("%w (download: %v)", err, httpErr)
+	}
+	return nil
 }
 
 func httpDownload(url, dest string) error {

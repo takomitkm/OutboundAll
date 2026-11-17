@@ -183,6 +183,13 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, ma
 	if err != nil {
 		return err
 	}
+	// Refuse to publish a self-inconsistent key: the registry fingerprint, the
+	// authorized_keys line and the shipped container all come from this one kp,
+	// and if its halves disagree the node can only fail at the relay with
+	// "Permission denied (publickey)" after the single-use credential is spent.
+	if err := crypto.VerifyKeyPair(kp); err != nil {
+		return fmt.Errorf("credential self-check: %w", err)
+	}
 	credID := "cred-" + randHex(6)
 	exp := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
 	managerPub := ""

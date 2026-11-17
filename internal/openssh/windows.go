@@ -7,9 +7,13 @@ import (
 )
 
 // EnsureWindowsPackage makes sure the pinned zip exists at dir and, when not yet
-// extracted, verifies its hash and unzips it (PowerShell Expand-Archive only exists
-// on Windows; on unix this path is never taken).
-func EnsureWindowsPackage(dir, zipPath string, cred any) error {
+// extracted, verifies its hash and unzips it (the zip is unpacked with the stdlib;
+// on unix this path is never taken).
+//
+// sshArgs is the ssh command line Fetch uses as its relay fallback; pass "" when
+// the caller has no channel that can serve `get openssh` (node install before
+// enrollment), and the resulting error will name the escapes instead.
+func EnsureWindowsPackage(dir, zipPath, sshArgs string) error {
 	exe := filepath.Join(dir, "OpenSSH-Win64", "sshd.exe")
 	if _, err := os.Stat(exe); err == nil {
 		return nil // already installed
@@ -24,7 +28,7 @@ func EnsureWindowsPackage(dir, zipPath string, cred any) error {
 		needFetch = true
 	}
 	if needFetch {
-		if err := Fetch(zipPath, ""); err != nil {
+		if err := Fetch(zipPath, sshArgs); err != nil {
 			return err
 		}
 	}

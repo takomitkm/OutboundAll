@@ -32,7 +32,8 @@ Node 是被远程管控的那台机器。安装后它会：
 
 - 已拿到一个 **Enrollment Credential** 文件（JSON，由 Controller/Relay 产出，见 §4）。
 - 目标机**不需要管理员/UAC**：本机 sshd 跑在高位回环端口、仅密钥、仅当前用户，不动系统 SSH、不动防火墙。
-- Windows：需要能联网（首次 install 会下载/校验固定版本的 `OpenSSH-Win64.zip`，可用 `--openssh-zip` 离线指定本地包）。
+- Windows：需要能联网（首次 install 会下载/校验固定版本的 `OpenSSH-Win64.zip`，可用 `--openssh-zip` 离线指定本地包，
+  或用环境变量 `DIALHOME_OPENSSH_URL` 指向可达镜像 —— 两者都仍按固定 sha256 校验，镜像不能替换成别的构建）。
 - Linux/macOS：使用系统自带 `ssh`/`sshd`（路径回退 `/usr/bin/ssh`、`/usr/sbin/sshd` 等）。
 - 数据目录（用户级，无需提权）：
   - Windows：`%LOCALAPPDATA%\dialhome\`
