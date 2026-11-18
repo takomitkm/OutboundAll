@@ -54,8 +54,29 @@
 - 无 UAC 提升路径；无服务安装；无 TUN；无系统路由修改——全部由权限测试（Phase 11 T-priv-*）在真实 Windows 跑者断言。
 - pre-logon 访问不在范围（源规格 §2）。
 
-## 5. 待 Phase 10 补全
+## 5. 终稿：威胁清单逐条落地状态（Phase 10，run 链见 ledger）
 
-- 每条威胁的"实现/测试"现状从"设计"逐条翻转为证据链接（CI run + 测试名）。
-- 备份泄漏（T16）具体机制（备份加密/权限/保留期）随部署产物落地。
-- 轮换流程（T4）写成 OPERATIONS.md 章节。
+| # | 威胁 | 现状 | 证据 |
+|---|---|---|---|
+| T1 | 窃取邀请 | 实现+测试：短期（默认24h TTL）+一次性+服务端存哈希+限速 6/min/IP+审计 | TestInvitationLifecycle, TestRedeemRateLimited, N14'-analog TestStoreNeverHoldsPlaintextSecrets |
+| T2 | 重放邀请 | 实现+测试：原子兑换（并发竞速恰一路成功） | TestRedeemAtomicUnderConcurrency (N5') |
+| T3 | 窃取节点 state | 实现：state 目录 0700/icacls 加固 + node secret 0600；跨平台单测 | N-cfg 系列, phase3 e2e |
+| T4 | 窃取 controller 凭据 | 实现：sha256-only 存储 + token-rotate 即时失效（CI 抓出并修复 Options 快照漏洞）+ CLI 三级解析 | TestHealthAndRotate (739d631) |
+| T5 | Headscale 失守 | **如实记录为架构代价**：自托管控制面=身份信任根（ADR-001/THREAT_MODEL §3 C5）；备份=OPERATIONS §4 | 设计文档 |
+| T6 | DERP 失守 | 原生 WireGuard 端到端加密，DERP 仅见元数据 | 协议保证 |
+| T7 | VPS 失守 | =T4+T5+管理面全失；管理面 HTTP 只绑回环（OPERATIONS §5 端口清单） | deploy.sh |
+| T8 | 未授权 tailnet 节点 | 实现+测试：注册需邀请→preauth 单用；deny-by-default policy | TestPhase4Chain (N8'/N9') |
+| T9 | 恶意已登记节点 | 实现+测试：逐 profile 隔离（no-ssh 节点对控制器黑洞）| G4 negative (run 74488ae) |
+| T10 | 跨节点横向移动 | 实现+测试：grants 无节点间通路；节点对节点默认零规则 | policy 渲染器（grants 空数组基线） |
+| T11 | SSH 转发滥用 | 实现+测试：ssh_server disable_forwarding=true 默认（结构性配对校验拒绝矛盾配置）| N-cfg-3/N-cfg-4 |
+| T12 | 意外提权执行 | 设计：userspace 无 TUN/驱动；sing-box 拒绝其他本地账户（上游语义）；Phase 11 真机权限测试待做 | sing-box 上游文档 |
+| T13 | Windows 会话终止 | 设计声明：登录会话内活，pre-logon 不在范围 | ARCHITECTURE §9 |
+| T14 | 撤销节点重连 | 实现+测试：headscale expire + ACL 移除 + 邀请作废 + resume 403 | N6'/N7' (phase3 e2e) |
+| T15 | 服务暴露（转发面） | 实现+测试：**双闸**——headscale grant(WHO) × node route allowlist(WHAT, reject-all 兜底)；未列端口黑洞 | G1 gates (run fad7a51) |
+| T16 | 日志/备份泄漏 | 实现：logging 脱敏（N14'）；**安全发现**：控制器 API 401/403 响应等无密钥输出；备份含 db+token，权限 0600（OPERATIONS §4）| TestRedact 系列 |
+
+**净安全发现（本重构期间 CI 抓出并已修）**：
+1. sing-box 裸默认把 tailnet 入站转发到同端口回环（任意回环暴露）→ reject-all 兜底（ADR-005）
+2. token 轮换后旧 token 经 Options 快照仍有效 → adminAuth 改读 store 当前 sha（739d631）
+3. windows lockfile 包级 mutex 使阻塞 Acquire 死锁 → 删 mutex（潜藏在 autocrlf 修复后首跑）
+4. 凭证容器/JSON 双层自证（fromSeed 派生 + public_key_openssh 对拍）——传递链换半在花掉一次性凭证前本地拦截
