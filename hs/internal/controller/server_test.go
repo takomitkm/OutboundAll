@@ -340,7 +340,6 @@ func TestResumeHTTP(t *testing.T) {
 // N-srv-6: audit trail is capped (self-DoS guard on a 1 GB VPS).
 func TestAuditCapped(t *testing.T) {
 	s := newTestStore(t)
-	fake := &FakeHeadscale{}
 	for i := 0; i < 150; i++ {
 		if _, _, err := s.CreateInvitation("", "", time.Hour, "bulk"); err != nil {
 			t.Fatal(err)
