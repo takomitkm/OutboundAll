@@ -106,6 +106,7 @@ WantedBy=multi-user.target
 EOF
 useradd -r -s /usr/sbin/nologin dialhome 2>/dev/null || true
 mkdir -p /var/lib/dialhome-hs
+chown -R dialhome:dialhome /var/lib/dialhome-hs
 cat > $UNIT/hs-controller.service <<EOF
 [Unit]
 Description=dialhome hs-controller management plane
