@@ -25,6 +25,15 @@ type binProc struct {
 	cmd *exec.Cmd
 }
 
+// alive reports whether the process has not exited yet.
+func (p *binProc) alive() bool {
+	if p.cmd.Process == nil {
+		return false
+	}
+	// Signal 0 = existence probe; no delivery.
+	return p.cmd.Process.Signal(syscall.Signal(0)) == nil
+}
+
 // kill stops the process GRACEFULLY first: hs-node's supervisor terminates
 // its sing-box child on SIGTERM, and a SIGKILL'd parent would orphan that
 // child -- an orphaned endpoint keeps its tailnet session alive (the G3
