@@ -13,6 +13,7 @@ package authz
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -67,17 +68,38 @@ func Render(nodes []NodeView, owner string) string {
 	// filtered out of the netmap entirely (CI-proven: status listed only the
 	// controller). Only SSH-enabled nodes get the grant; node-to-node stays
 	// ruleless.
-	if len(sshNodes) == 0 {
+	// Service ports (ADR-005): one grant per unique port, dst = the base node
+	// tag (held by every managed node). The grant is the WHO gate (which peer
+	// may dial the port); the node's own route config is the WHAT gate
+	// (reject-all except explicit services). Only nodes with the service
+	// configured will forward.
+	ports := map[int]bool{}
+	for _, n := range nodes {
+		for _, p := range n.Services {
+			ports[p] = true
+		}
+	}
+	if len(sshNodes) == 0 && len(ports) == 0 {
 		b.WriteString(`  "grants": [],` + "\n")
 		// no SSH-enabled nodes: no ssh rules either -- fully deny
 		b.WriteString(`  "ssh": []` + "\n")
 	} else {
 		b.WriteString(`  "grants": [` + "\n")
-		b.WriteString(`    // headscale grants ProtocolPort syntax is proto:PORT with a COLON
+		// headscale grants ProtocolPort syntax is proto:PORT with a COLON
 		// ("tcp:22"); the slash form ("tcp/22") is Tailscale-ACL dst syntax
 		// and fails to parse (CI-proven: "invalid first integer").
-		// data plane: controller tag -> SSH-enabled nodes, tcp:22 only` + "\n")
-		b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "ip": ["tcp:22"] }` + "\n")
+		if len(sshNodes) > 0 {
+			b.WriteString(`    // data plane: controller tag -> SSH-enabled nodes, tcp:22 only` + "\n")
+			b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNodeSSH) + `], "ip": ["tcp:22"] }` + "\n")
+		}
+		sortedPorts := make([]int, 0, len(ports))
+		for p := range ports {
+			sortedPorts = append(sortedPorts, p)
+		}
+		sort.Ints(sortedPorts)
+		for _, p := range sortedPorts {
+			b.WriteString(`    { "src": [` + quote(TagController) + `], "dst": [` + quote(TagNode) + `], "ip": ["tcp:` + strconv.Itoa(p) + `"] }` + "\n")
+		}
 		b.WriteString(`  ],` + "\n")
 		b.WriteString(`  "ssh": [` + "\n")
 		b.WriteString(`    // controller tag -> SSH-enabled node tags only` + "\n")
