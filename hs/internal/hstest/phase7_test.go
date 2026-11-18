@@ -15,8 +15,8 @@ package hstest
 
 import (
 	"fmt"
-	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -127,7 +127,7 @@ log:
 		}
 		return fmt.Errorf("not online yet")
 	}); err != nil {
-		dumpLog(t, node, "node during registration")
+		t.Logf("node log tail: see hs-node dump on failure")
 		t.Fatal(err)
 	}
 	t.Logf("node-f online (headscale id %d)", id)
@@ -174,7 +174,7 @@ log:
 		}
 		return nil
 	}); err != nil {
-		dumpLog(t, node, "node during recovery")
+		t.Logf("node log tail: see hs-node dump on failure")
 		t.Fatal(err)
 	}
 	t.Logf("GATE H4b PASS: node reconnected to the restarted control plane with identity %d intact", id)
