@@ -364,9 +364,9 @@ func TestHealthAndRotate(t *testing.T) {
 		t.Fatal(err)
 	}
 	var h struct {
-		Status  string `json:"status"`
-		Nodes   int    `json:"nodes"`
-		Invitations int `json:"invitations"`
+		Status      string `json:"status"`
+		Nodes       int    `json:"nodes"`
+		Invitations int    `json:"invitations"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&h); err != nil {
 		t.Fatal(err)
