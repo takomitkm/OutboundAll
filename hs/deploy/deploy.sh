@@ -137,6 +137,8 @@ echo "== 5) enable + start =="
 systemctl daemon-reload
 systemctl enable --now headscale
 sleep 3
+# idempotent: the controller resolves this user at startup
+$INSTALL/headscale --config /etc/headscale/config.yaml users create ci 2>/dev/null || true
 systemctl enable --now hs-controller
 sleep 3
 
