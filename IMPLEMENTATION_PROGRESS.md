@@ -6,7 +6,8 @@
 ## 当前状态
 
 - **已完成**：Phase 0/1/1b（架构冻结 + 决策门实证）/ **Phase 2**（hs-node 运行时：config 不变式、布局、sing-box 钉定下载、进程 supervisor、自启动、单实例锁；单元测试双 OS 绿）。
-- **当前阶段**：Phase 7（锚点/故障转移：九类失败映射测试，ADR-004 终稿）。
+- **当前阶段**：Phase 8（控制面收口：SQLite 语义下的 JSON store 审计、API 鉴权已有；转入部署产物）。
+- **Phase 7 完成（run 87e7c3f 全 5 job 绿）**：H4a 控制面停 15s 节点存活、H4b 恢复后同身份重连（无重复注册）。九类失败全部有证据或排除记录（ADR-004 终稿表）；DERP 多 region 为部署产物（Phase 9 真机可加）。
 - **Phase 6 完成（run fad7a51 全 5 job 绿）**：G1-a 收口——sing-box 路由引擎原生把 tailnet 入站引到回环（自身 IP 拨号重映射 127.0.0.1，endpoint.go NewConnectionEx 源码证据）；双闸模型（headscale grant=WHO × node route allowlist=WHAT）；**安全发现已修**：sing-box 裸默认会把任意 tailnet 拨号转发到同端口回环 → hs-node 渲染永远带 reject-all；ssh_server:22 在 reject-all 下存活（tsnet listener 先于路由器）。ADR-005 Accepted。
 - **Phase 3 完成（run 74cb225，全 5 job 绿）**：hs-controller（邀请/兑换/resume/撤销/审计 + CLI=API thin client）+ hs-node（enroll/resume/boot-wait/auth-hook）+ e2e 两条真链（phase1b 架构门 + phase3 全栈登记链）。CI 红轮战果：H6 类分叉状态（CLI 直写 registry vs serve 内存态 → CLI 改 API thin client）、windows 锁死锁（包级 mutex 套阻塞 LockFileEx → store 改 bounded TryAcquire retry）、unix 目录 0600（去执行位不可遍历 → 0700）、preauthkeys JSON 形状、SIGKILL 孤儿 sing-box 掩盖撤销语义（e2e kill 改 SIGTERM 优先）。
 - **新增共享件**：internal/lockfile.TryAcquire（非阻塞锁；LIVE-RED 教训：阻塞锁使「another supervisor」路径永不触发）。
