@@ -92,7 +92,11 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+User=dialhome
+Group=dialhome
 ExecStart=/usr/local/bin/headscale serve --config /etc/headscale/config.yaml
+ExecStartPre=/bin/mkdir -p /var/lib/headscale /var/run/headscale
+ExecStartPre=/bin/chown -R dialhome:dialhome /var/lib/headscale /var/run/headscale
 RuntimeDirectory=headscale
 RuntimeDirectoryMode=0755
 Restart=on-failure
