@@ -6,7 +6,13 @@
 ## 当前状态
 
 - **已完成**：Phase 0/1/1b（架构冻结 + 决策门实证）/ **Phase 2**（hs-node 运行时：config 不变式、布局、sing-box 钉定下载、进程 supervisor、自启动、单实例锁；单元测试双 OS 绿）。
-- **当前阶段**：**全部 12 阶段完成**（Phase 0–12；真机部署验收收口于 e45d38c 线）。
+- **当前阶段**：**12 阶段全部完成 + 真机跨网测试进行中**（本机↔校机经 139 控制面；数据面受阻见下）。
+- **真机跨网测试进展（139.9.101.203 控制面）**：
+  - ✅ 控制面跨网：校机经 SSH 隧道（22/tcp，免开安全组）登记成功——win11-hv1 node id 2、双 tags、online（run 95cf74b 线）
+  - ✅ 控制端免 tailscale：本机 sing-box（controller tag + socks 入站 1080）注册成功——local-controller IP 100.64.0.1（上游语义：preauth key 注册时 advertise_tags 被 headscale 拒，tags 必须来自 key 本身——已在 CI 单测范围外、真机实证）
+  - ❌ **数据面无路径**：本机↔校机 WireGuard UDP——直连被双 NAT 挡、139 安全组只开 22（3478/udp STUN、443/tcp DERP 全关）、Tailscale 公共 DERP 从中国网络不可达。sing-box socks→tailnet 2m7s 超时（/tmp/ctrl2.log 实证）
+  - **需要用户拍板**：华为云控制台开 443/tcp+3478/udp+8080/tcp，且需要一个域名解析到 139（DERP over TLS 必须；无域名则 Let's Encrypt 无法签）→ 开完即可完成端到端 tailscale-ssh 测试
+  - 真机部署缺陷共修复 8 个（CI 无法模拟的）：226/NAMESPACE、数据目录属主、socket 权限、H6 分叉、policy 属主、deploy restart 语义、controller --server 漂移、taildrop CWD
 - **Phase 9 完成（真机 139.9.101.203, 2c/1G）**：DEPLOY-OK 双健康端点；真机全链冒烟（invite→enroll→revoke→deny resume→policy 同步 deny）。真机抓出并修复 5 个部署级缺陷（CI 无法模拟的）：systemd 226/NAMESPACE（RuntimeDirectory）、controller 数据目录属主、headscale unix socket 权限（双服务改 dialhome 用户）、H6 类分叉状态（root init vs dialhome serve 的 store 路径）、policy 文件属主（revoke 时 reload 被拒）。资源占用 headscale 53MB + controller 10MB = 63MB（1G 预算内）。
 - **Phase 7 完成（run 87e7c3f 全 5 job 绿）**：H4a 控制面停 15s 节点存活、H4b 恢复后同身份重连（无重复注册）。九类失败全部有证据或排除记录（ADR-004 终稿表）；DERP 多 region 为部署产物（Phase 9 真机可加）。
 - **Phase 6 完成（run fad7a51 全 5 job 绿）**：G1-a 收口——sing-box 路由引擎原生把 tailnet 入站引到回环（自身 IP 拨号重映射 127.0.0.1，endpoint.go NewConnectionEx 源码证据）；双闸模型（headscale grant=WHO × node route allowlist=WHAT）；**安全发现已修**：sing-box 裸默认会把任意 tailnet 拨号转发到同端口回环 → hs-node 渲染永远带 reject-all；ssh_server:22 在 reject-all 下存活（tsnet listener 先于路由器）。ADR-005 Accepted。
