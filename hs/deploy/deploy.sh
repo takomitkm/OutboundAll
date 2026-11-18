@@ -83,6 +83,10 @@ log:
 EOF
   echo '{"grants": [], "ssh": []}' > /etc/headscale/policy.json
 fi
+# the controller (dialhome user) owns the policy file: it writes it on
+# every authz change and SIGHUPs headscale to reload
+chown dialhome:dialhome /etc/headscale/policy.json
+chmod 644 /etc/headscale/policy.json
 
 echo "== 4) systemd units =="
 cat > $UNIT/headscale.service <<'EOF'
