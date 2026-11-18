@@ -6,7 +6,7 @@
 ## 当前状态
 
 - **已完成**：Phase 0/1/1b（架构冻结 + 决策门实证）/ **Phase 2**（hs-node 运行时：config 不变式、布局、sing-box 钉定下载、进程 supervisor、自启动、单实例锁；单元测试双 OS 绿）。
-- **当前阶段**：Phase 8（控制面收口：SQLite 语义下的 JSON store 审计、API 鉴权已有；转入部署产物）。
+- **当前阶段**：Phase 9（部署产物 + 真机 139.9.101.203 可用性验证，2c1g 节制使用）。
 - **Phase 7 完成（run 87e7c3f 全 5 job 绿）**：H4a 控制面停 15s 节点存活、H4b 恢复后同身份重连（无重复注册）。九类失败全部有证据或排除记录（ADR-004 终稿表）；DERP 多 region 为部署产物（Phase 9 真机可加）。
 - **Phase 6 完成（run fad7a51 全 5 job 绿）**：G1-a 收口——sing-box 路由引擎原生把 tailnet 入站引到回环（自身 IP 拨号重映射 127.0.0.1，endpoint.go NewConnectionEx 源码证据）；双闸模型（headscale grant=WHO × node route allowlist=WHAT）；**安全发现已修**：sing-box 裸默认会把任意 tailnet 拨号转发到同端口回环 → hs-node 渲染永远带 reject-all；ssh_server:22 在 reject-all 下存活（tsnet listener 先于路由器）。ADR-005 Accepted。
 - **Phase 3 完成（run 74cb225，全 5 job 绿）**：hs-controller（邀请/兑换/resume/撤销/审计 + CLI=API thin client）+ hs-node（enroll/resume/boot-wait/auth-hook）+ e2e 两条真链（phase1b 架构门 + phase3 全栈登记链）。CI 红轮战果：H6 类分叉状态（CLI 直写 registry vs serve 内存态 → CLI 改 API thin client）、windows 锁死锁（包级 mutex 套阻塞 LockFileEx → store 改 bounded TryAcquire retry）、unix 目录 0600（去执行位不可遍历 → 0700）、preauthkeys JSON 形状、SIGKILL 孤儿 sing-box 掩盖撤销语义（e2e kill 改 SIGTERM 优先）。
@@ -48,6 +48,7 @@
 | 95f5300→6ed1277 | ✅ | ✅→红×3轮 | ✅ | ⏭ | Phase 2 单测上线：gofmt 对齐（gofmt 真实规则=注释/空行断开对齐run）、NewChannel 名、CREATE_NO_WINDOW 字面量、**lockfile 阻塞锁 LIVE-RED**（第二次实例挂死 10min→加 TryAcquire）、%q 引用、梯语义误读 |
 | 8df49f8 | ✅ | ✅ | ✅ | ✅ | **Phase 2 全绿（双 OS 单测 + e2e + smoke + build）** |
 | ad4964c→74cb225 | ✅ | ✅(红×4轮) | ✅ | ✅ | Phase 3a+3b：管理面+登记链；e2e 红轮抓 H6 分叉状态/windows 死锁/孤儿进程 |
+| 646d98d→739d631 | ✅ | ✅ | ✅ | ✅ | **Phase 8 全绿**：审计上限 10k、健康计数器、token 轮换（CLI+API）；CI 抓出 adminAuth 读 Options 快照→轮换后旧 token 仍有效（改读 store 当前 sha，即时失效） |
 | 85fac7f→360fe21 | ✅ | ✅ | ✅ | ✅ | **Phase 4+5 全绿**：deny-by-default 授权（G4 正/负对照）+ hs-admin 运维 CLI（e2e 的 invite/revoke 走 CLI）；CI 红轮战果：grants ip 需冒号语法 tcp:22、grant src 匹配节点实持身份（untagged ctrl 不进 peer map）、windows lockfile 包级 mutex 死锁（阻塞 Acquire 持 mutex 跨 LockFileEx）→ 删 mutex |
 | 7a0f3af | ✅ | ✅ | ✅ | ✅ | e2e 假绿（管道吞退出码）——测试实际红 |
 | e4deb55/82720c1 | ✅ | ✅ | ✅ | ✅/— | e2e 红（policy `*` / mkdir）——pipefail 后诚实红 |
