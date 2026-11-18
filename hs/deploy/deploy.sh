@@ -139,7 +139,8 @@ EOF
 
 echo "== 5) enable + start =="
 systemctl daemon-reload
-systemctl enable --now headscale
+systemctl enable headscale
+systemctl restart headscale
 sleep 3
 # idempotent: the controller resolves this user at startup
 $INSTALL/headscale --config /etc/headscale/config.yaml users create ci 2>/dev/null || true
@@ -149,7 +150,8 @@ if [ ! -f /var/lib/dialhome-hs/.dialhome-hs/registry.json ]; then
   runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init 2>/dev/null ||     runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init
   systemctl restart hs-controller
 fi
-systemctl enable --now hs-controller
+systemctl enable hs-controller
+systemctl restart hs-controller
 sleep 3
 
 echo "== 6) availability =="
