@@ -464,17 +464,20 @@ log:
 	}
 	t.Logf("GATE G1 ssh survival: ssh_server:22 works with reject-all live")
 
-	// policy file on disk keeps the deny-by-default SHAPE: grants scope ONLY
-	// the ssh-enabled tag (with node-c enrolled the grants array is non-empty;
-	// the empty-array baseline applies when no ssh node exists). node-b
-	// (no-ssh profile) must never appear as a grant destination.
+	// policy file on disk keeps the deny-by-default SHAPE: the ssh-enabled tag
+	// is the destination ONLY of the tcp:22 grant (node-b holds just the base
+	// tag, so service-port grants to the base tag never unlock SSH for it --
+	// CI-proven by the G4 negative). Service grants to the base tag are BY
+	// DESIGN (ADR-005): the node-side reject-all is the per-node gate.
 	if b, err := os.ReadFile(me("hs/policy.json")); err == nil {
 		body := string(b)
 		if !strings.Contains(body, authz.TagNodeSSH) {
 			t.Fatalf("policy file lost the ssh-enabled tag scoping:\n%s", body)
 		}
-		if strings.Contains(body, `"dst": ["`+authz.TagNode+`"]`) {
-			t.Fatalf("policy file grants node-b (no-ssh profile) data-plane access:\n%s", body)
+		for _, line := range strings.Split(body, "\n") {
+			if strings.Contains(line, authz.TagNodeSSH) && strings.Contains(line, `"ip":`) && !strings.Contains(line, "tcp:22") {
+				t.Fatalf("ssh-enabled tag exposed on a non-22 port:\n%s", line)
+			}
 		}
 	}
 	t.Logf("==== PHASE 4 SUMMARY ====")
