@@ -97,10 +97,20 @@ func (s *Server) adminAuth(r *http.Request) bool {
 		return false
 	}
 	token := strings.TrimPrefix(auth, "Bearer ")
-	if token == "" || s.opt.AdminTokenSHA == "" {
+	if token == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(shaHex(token)), []byte(s.opt.AdminTokenSHA)) == 1
+	// read the CURRENT hash from the store (single source of truth): a token
+	// rotation must invalidate the old token immediately -- the Options
+	// snapshot would keep it valid until restart (CI-caught).
+	want := s.store.AdminTokenSHA()
+	if want == "" {
+		want = s.opt.AdminTokenSHA
+	}
+	if want == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(shaHex(token)), []byte(want)) == 1
 }
 
 func (s *Server) rateOK(ip string) bool {
