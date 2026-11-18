@@ -326,8 +326,7 @@ func cmdTokenRotate(args []string) int {
 	}
 	dir := dataDir()
 	tokPath := dir + string(os.PathSeparator) + "admin-token"
-	if err := os.WriteFile(tokPath, []byte(nt+"
-"), 0o600); err != nil {
+	if err := os.WriteFile(tokPath, []byte(nt+"\n"), 0o600); err != nil {
 		fatal("write admin-token: %v", err)
 	}
 	fmt.Println("NEW-ADMIN-TOKEN (shown once):")
