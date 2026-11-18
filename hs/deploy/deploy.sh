@@ -119,10 +119,10 @@ ExecStart=$INSTALL/hs-controller serve --listen 127.0.0.1:8800 \
   --policy-file /etc/headscale/policy.json
 User=dialhome
 Environment=HOME=/var/lib/dialhome-hs
+ExecStartPre=/bin/mkdir -p /var/lib/dialhome-hs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
-ReadOnlyPaths=/etc/headscale
 
 [Install]
 WantedBy=multi-user.target
