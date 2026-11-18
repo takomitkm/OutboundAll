@@ -373,6 +373,14 @@ log:
 	}
 	t.Logf("GATE G4 negative: node-b:22 not reachable (exit %d, out=%q) -- deny-by-default holds", nbCode, strings.TrimSpace(nbOut))
 
+	username := os.Getenv("USER")
+	if username == "" {
+		username = os.Getenv("USERNAME")
+	}
+	if username == "" {
+		username = "runner"
+	}
+
 	// ---- Phase-6 G1 experiment: service forwarding through the userspace
 	// endpoint. node-c exposes 127.0.0.1:8443 (a loopback service ON THE NODE
 	// -- here the runner itself). The node route engine must forward
@@ -450,7 +458,7 @@ log:
 	// ssh_server:22 must SURVIVE the reject-all rule (its tsnet listener
 	// claims :22 before the router sees the connection)
 	sshAfterOut, sshAfterCode := runBin(t, nil, tsBin, sockArg,
-		"ssh", "ci@node-c", "echo ssh-survives-reject")
+		"ssh", username+"@node-c", "echo ssh-survives-reject")
 	if sshAfterCode != 0 || !strings.Contains(sshAfterOut, "ssh-survives-reject") {
 		t.Fatalf("G1 FAILED: ssh_server died under the reject-all rule (exit %d, out=%q)", sshAfterCode, sshAfterOut)
 	}
