@@ -65,7 +65,7 @@ func usage() {
   hs-admin server status
   hs-admin invite create [--label L] [--profile P] [--ttl-hours H]
   hs-admin invite revoke <id> | invite list
-  hs-admin node list | node revoke <id>
+  hs-admin node list | node revoke <id> | node purge <id>
   hs-admin shell <node> [--user U] [--socket S]
   hs-admin exec <node> [--user U] [--socket S] -- <cmd...>
   hs-admin sftp <node> [--user U] [--socket S]
@@ -217,6 +217,17 @@ func cmdNode(args []string) int {
 			return failInvite(err)
 		}
 		fmt.Println("REVOKED", rest[0])
+		return 0
+	case "purge":
+		if len(rest) < 1 {
+			usage()
+			return errs.ExitUsage
+		}
+		c := clientFor(apiURL(api), token)
+		if err := c.PurgeNode(rest[0]); err != nil {
+			return failInvite(err)
+		}
+		fmt.Println("PURGED", rest[0])
 		return 0
 	default:
 		usage()
