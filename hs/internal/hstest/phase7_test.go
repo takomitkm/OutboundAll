@@ -33,6 +33,9 @@ func TestPhase7Chain(t *testing.T) {
 	if err := os.MkdirAll(me("hs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(me("node"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := fmt.Sprintf(`server_url: http://127.0.0.1:8080
 listen_addr: 127.0.0.1:8080
