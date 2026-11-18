@@ -124,7 +124,7 @@ Wants=headscale.service
 [Service]
 ExecStart=$INSTALL/hs-controller serve --listen 127.0.0.1:8800 \
   --headscale-bin $INSTALL/headscale --headscale-config /etc/headscale/config.yaml \
-  --headscale-user ci --server http://127.0.0.1:8080 \
+  --headscale-user ci --server http://127.0.0.1:18080 \
   --policy-file /var/lib/dialhome-hs/policy.json
 User=dialhome
 Environment=HOME=/var/lib/dialhome-hs
