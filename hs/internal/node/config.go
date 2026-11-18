@@ -188,6 +188,9 @@ func (c *Config) singBoxDoc(authKey string) (string, error) {
 		"control_url":      c.Server,
 		"hostname":         c.Hostname,
 		"state_directory":  c.StateDir,
+		// taildrop default resolves against the process CWD (schtasks CWD is
+		// system32 -- real-machine deploy failure); pin it into the state dir
+		"taildrop_directory": filepath.Join(c.StateDir, "taildrop"),
 		"system_interface": false,
 		"ssh_server": map[string]any{
 			"enabled":            c.SSHServer.Enabled,
