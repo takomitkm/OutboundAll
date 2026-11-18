@@ -337,6 +337,74 @@ func TestResumeHTTP(t *testing.T) {
 	}
 }
 
+// N-srv-6: audit trail is capped (self-DoS guard on a 1 GB VPS).
+func TestAuditCapped(t *testing.T) {
+	s := newTestStore(t)
+	fake := &FakeHeadscale{}
+	for i := 0; i < 150; i++ {
+		if _, err := s.CreateInvitation("", "", time.Hour, "bulk"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events := s.Audit()
+	if len(events) > AuditMax {
+		t.Fatalf("audit grew beyond the cap: %d", len(events))
+	}
+	if len(events) == 0 {
+		t.Fatal("audit empty after 150 mutations")
+	}
+}
+
+// N-srv-7: health carries counters; token-rotate invalidates the old token.
+func TestHealthAndRotate(t *testing.T) {
+	f := newSrv(t)
+	// counters on the empty store
+	resp, err := http.Get(f.ts.URL + "/api/v1/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h struct {
+		Status  string `json:"status"`
+		Nodes   int    `json:"nodes"`
+		Invitations int `json:"invitations"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&h); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if h.Status != "ok" || h.Nodes != 0 {
+		t.Fatalf("health = %+v", h)
+	}
+	// rotate: new token works, old token 401s
+	rotReq, _ := http.NewRequest("POST", f.ts.URL+"/api/v1/admin/token-rotate", nil)
+	rotReq.Header.Set("Authorization", "Bearer "+f.adminTok)
+	rotResp, err := http.DefaultClient.Do(rotReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rt struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(rotResp.Body).Decode(&rt); err != nil || rt.Token == "" {
+		t.Fatalf("rotate response missing token: %v %v", err, rt)
+	}
+	rotResp.Body.Close()
+	oldReq, _ := http.NewRequest("GET", f.ts.URL+"/api/v1/nodes", nil)
+	oldReq.Header.Set("Authorization", "Bearer "+f.adminTok)
+	oldResp, _ := http.DefaultClient.Do(oldReq)
+	oldResp.Body.Close()
+	if oldResp.StatusCode != 401 {
+		t.Fatalf("old token after rotate = %d, want 401", oldResp.StatusCode)
+	}
+	newReq, _ := http.NewRequest("GET", f.ts.URL+"/api/v1/nodes", nil)
+	newReq.Header.Set("Authorization", "Bearer "+rt.Token)
+	newResp, _ := http.DefaultClient.Do(newReq)
+	newResp.Body.Close()
+	if newResp.StatusCode != 200 {
+		t.Fatalf("new token after rotate = %d, want 200", newResp.StatusCode)
+	}
+}
+
 // N-srv-5: revoke via API marks the node and blocks resume (N6'/N7').
 func TestRevokeHTTP(t *testing.T) {
 	f := newSrv(t)

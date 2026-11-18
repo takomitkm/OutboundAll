@@ -63,6 +63,8 @@ func run(args []string) int {
 		return cmdNode(args[1:])
 	case "audit":
 		return cmdAudit(args[1:])
+	case "token-rotate":
+		return cmdTokenRotate(args[1:])
 	case "version":
 		fmt.Printf("hs-controller %s\n", version)
 		return 0
@@ -80,6 +82,7 @@ func usage() {
   hs-controller invite revoke <id> | list
   hs-controller node list | revoke <id>
   hs-controller audit [N]
+  hs-controller token-rotate                # new admin token (shown once; restart serve)
   hs-controller version
 `)
 }
@@ -306,6 +309,31 @@ func runHUP() (string, error) {
 		return string(out), fmt.Errorf("headscale pid not found")
 	}
 	return "", exec.Command("kill", "-HUP", pid).Run()
+}
+
+// cmdTokenRotate replaces the admin token. Runs against the store directly
+// (single-writer discipline: the serve process holds an in-memory copy, so a
+// restart is REQUIRED for it to pick the new hash -- printed loudly).
+func cmdTokenRotate(args []string) int {
+	nt, err := controller.RandomToken()
+	if err != nil {
+		fatal("generate token: %v", err)
+	}
+	sum := sha256.Sum256([]byte(nt))
+	s := openStore()
+	if err := s.SetAdminToken(hex.EncodeToString(sum[:])); err != nil {
+		fatal("store token: %v", err)
+	}
+	dir := dataDir()
+	tokPath := dir + string(os.PathSeparator) + "admin-token"
+	if err := os.WriteFile(tokPath, []byte(nt+"
+"), 0o600); err != nil {
+		fatal("write admin-token: %v", err)
+	}
+	fmt.Println("NEW-ADMIN-TOKEN (shown once):")
+	fmt.Println(nt)
+	fmt.Println("RESTART hs-controller serve now -- it holds the old hash in memory")
+	return 0
 }
 
 func listenAndServe(listen string, h http.Handler) error {

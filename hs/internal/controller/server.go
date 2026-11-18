@@ -122,6 +122,7 @@ func (s *Server) rateOK(ip string) bool {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
+	mux.HandleFunc("/api/v1/admin/token-rotate", s.guard(s.handleTokenRotate))
 	mux.HandleFunc("/api/v1/invitations", s.guard(s.handleInvitations))
 	mux.HandleFunc("/api/v1/invitations/", s.guard(s.handleInvitationOne))
 	mux.HandleFunc("/api/v1/enroll/redeem", s.handleRedeem)
@@ -155,7 +156,34 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]string{"status": "ok", "time": time.Now().UTC().Format(time.RFC3339)})
+	nodes, active, invitations := s.store.Counts()
+	writeJSON(w, 200, map[string]any{
+		"status":       "ok",
+		"time":         time.Now().UTC().Format(time.RFC3339),
+		"nodes":        nodes,
+		"nodes_active": active,
+		"invitations":  invitations,
+	})
+}
+
+// handleTokenRotate replaces the admin token (admin-only). The new token is
+// returned exactly once; the store keeps only its sha256. Callers must
+// update their CLI token file immediately.
+func (s *Server) handleTokenRotate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpError(w, 405, "POST required")
+		return
+	}
+	nt, err := RandomToken()
+	if err != nil {
+		httpError(w, 500, err.Error())
+		return
+	}
+	if err := s.store.SetAdminToken(AdminTokenSHA(nt)); err != nil {
+		httpError(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"token": nt})
 }
 
 // POST /api/v1/invitations {label, profile, ttl_hours}

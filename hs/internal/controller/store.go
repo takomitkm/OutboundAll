@@ -185,6 +185,9 @@ func (s *Store) mutate(kind, actor, detail string, fn func() error) error {
 		return err
 	}
 	s.data.Audit = append(s.data.Audit, AuditEvent{At: time.Now().UTC(), Kind: kind, Actor: actor, Detail: detail})
+	if len(s.data.Audit) > AuditMax {
+		s.data.Audit = s.data.Audit[len(s.data.Audit)-AuditMax:]
+	}
 	return s.flushNoLock()
 }
 
@@ -222,12 +225,29 @@ func (s *Store) AdminTokenSHA() string {
 	return s.data.AdminToken
 }
 
+// AuditMax caps the audit trail (oldest events dropped first). The audit is
+// a management-plane record, not an infinite log: unbounded growth on a
+// 1 GB VPS is a self-inflicted DoS.
+const AuditMax = 10000
+
 // Audit returns the audit trail (oldest first, capped read view).
 func (s *Store) Audit() []AuditEvent {
 	out := make([]AuditEvent, len(s.data.Audit))
 	copy(out, s.data.Audit)
 	sort.Slice(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
 	return out
+}
+
+// Counts renders the health counters.
+func (s *Store) Counts() (nodes, active, invitations int) {
+	for _, n := range s.data.Nodes {
+		nodes++
+		if n.State == NodeActive {
+			active++
+		}
+	}
+	invitations = len(s.data.Invitations)
+	return nodes, active, invitations
 }
 
 // Snapshot returns a deep read of the store for API rendering (no secrets:
