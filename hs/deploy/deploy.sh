@@ -139,6 +139,12 @@ systemctl enable --now headscale
 sleep 3
 # idempotent: the controller resolves this user at startup
 $INSTALL/headscale --config /etc/headscale/config.yaml users create ci 2>/dev/null || true
+# init the store AS THE SERVICE USER (H6-class: init as root writes /root,
+# serve as dialhome reads /var/lib/dialhome-hs -- split state)
+if [ ! -f /var/lib/dialhome-hs/.dialhome-hs/registry.json ]; then
+  runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init 2>/dev/null ||     runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init
+  systemctl restart hs-controller
+fi
 systemctl enable --now hs-controller
 sleep 3
 
