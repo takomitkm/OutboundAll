@@ -156,6 +156,21 @@ func (c *Client) RevokeInvite(id string) error {
 	return nil
 }
 
+// PurgeNode deletes a revoked tombstone (frees the hostname).
+func (c *Client) PurgeNode(id string) error {
+	st, b, err := c.do(http.MethodPost, "/api/v1/nodes-purge/"+id, nil)
+	if err != nil {
+		return err
+	}
+	if st == 401 {
+		return ErrUnauthorized
+	}
+	if st != 200 {
+		return fmt.Errorf("POST /nodes-purge/%s: HTTP %d: %s", id, st, b)
+	}
+	return nil
+}
+
 // RevokeNode tombstones a node and expires it in headscale.
 func (c *Client) RevokeNode(id string) error {
 	st, b, err := c.do(http.MethodPost, "/api/v1/nodes/"+id+"/revoke", nil)

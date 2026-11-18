@@ -140,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/nodes", s.guard(s.handleNodes))
 	mux.HandleFunc("/api/v1/nodes/", s.guard(s.handleNodeOne))
 	mux.HandleFunc("/api/v1/audit", s.guard(s.handleAudit))
+	mux.HandleFunc("/api/v1/nodes-purge/", s.guard(s.handleNodePurge))
 	return mux
 }
 
@@ -376,6 +377,28 @@ func (s *Server) handleNodeOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"revoked": id})
+}
+
+// POST /api/v1/nodes-purge/{id} -- delete a REVOKED tombstone (frees the
+// hostname). Active/pending records are refused by the store.
+func (s *Server) handleNodePurge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httpError(w, 405, "POST required")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/nodes-purge/")
+	if err := s.store.PurgeNode(id, "admin:"+clientIP(r)); err != nil {
+		status := 500
+		switch err {
+		case ErrNoInvitation:
+			status = 404
+		case ErrNotRevoked:
+			status = 409
+		}
+		httpError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"purged": id})
 }
 
 // GET /api/v1/audit -- recent audit events (admin).

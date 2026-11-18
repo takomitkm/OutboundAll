@@ -230,6 +230,26 @@ func (s *Store) AdminTokenSHA() string {
 // 1 GB VPS is a self-inflicted DoS.
 const AuditMax = 10000
 
+// ErrNotRevoked guards purge: only tombstones can be removed.
+var ErrNotRevoked = errors.New("only revoked nodes can be purged")
+
+// PurgeNode deletes a REVOKED node record (frees the hostname). Active and
+// pending records are refused -- the reference implementation's relay purge
+// semantics (RELAY_MANUAL §4.1: refusing to purge a live node).
+func (s *Store) PurgeNode(id, actor string) error {
+	return s.mutate("node.purge", actor, "id="+id, func() error {
+		node, ok := s.data.Nodes[id]
+		if !ok {
+			return ErrNoInvitation
+		}
+		if node.State != NodeRevoked {
+			return ErrNotRevoked
+		}
+		delete(s.data.Nodes, id)
+		return nil
+	})
+}
+
 // Audit returns the audit trail (oldest first, capped read view).
 func (s *Store) Audit() []AuditEvent {
 	out := make([]AuditEvent, len(s.data.Audit))
