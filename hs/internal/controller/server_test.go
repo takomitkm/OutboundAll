@@ -342,7 +342,7 @@ func TestAuditCapped(t *testing.T) {
 	s := newTestStore(t)
 	fake := &FakeHeadscale{}
 	for i := 0; i < 150; i++ {
-		if _, err := s.CreateInvitation("", "", time.Hour, "bulk"); err != nil {
+		if _, _, err := s.CreateInvitation("", "", time.Hour, "bulk"); err != nil {
 			t.Fatal(err)
 		}
 	}
