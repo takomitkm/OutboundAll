@@ -68,7 +68,7 @@ database:
     write_ahead_log: true
 policy:
   mode: file
-  path: /etc/headscale/policy.json
+  path: /var/lib/dialhome-hs/policy.json
 dns:
   magic_dns: true
   base_domain: tailnet.dialhome.internal
@@ -81,12 +81,12 @@ log:
   level: info
   format: text
 EOF
-  echo '{"grants": [], "ssh": []}' > /etc/headscale/policy.json
+  # policy lives in the CONTROLLER's data dir: the controller (dialhome
+  # user) atomically writes it per authz change (tmp+rename needs directory
+  # write permission -- /etc/headscale is root-owned, real-machine failure)
+  echo '{"grants": [], "ssh": []}' > /var/lib/dialhome-hs/policy.json
+  chown dialhome:dialhome /var/lib/dialhome-hs/policy.json
 fi
-# the controller (dialhome user) owns the policy file: it writes it on
-# every authz change and SIGHUPs headscale to reload
-chown dialhome:dialhome /etc/headscale/policy.json
-chmod 644 /etc/headscale/policy.json
 
 echo "== 4) systemd units =="
 cat > $UNIT/headscale.service <<'EOF'
@@ -125,7 +125,7 @@ Wants=headscale.service
 ExecStart=$INSTALL/hs-controller serve --listen 127.0.0.1:8800 \
   --headscale-bin $INSTALL/headscale --headscale-config /etc/headscale/config.yaml \
   --headscale-user ci --server http://127.0.0.1:8080 \
-  --policy-file /etc/headscale/policy.json
+  --policy-file /var/lib/dialhome-hs/policy.json
 User=dialhome
 Environment=HOME=/var/lib/dialhome-hs
 ExecStartPre=/bin/mkdir -p /var/lib/dialhome-hs
