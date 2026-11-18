@@ -34,7 +34,7 @@ echo "== 3) headscale config =="
 mkdir -p /etc/headscale /var/lib/headscale
 if [ ! -f /etc/headscale/config.yaml ]; then
   cat > /etc/headscale/config.yaml <<EOF
-server_url: http://139.9.101.203:8080
+server_url: http://127.0.0.1:8080
 listen_addr: 0.0.0.0:8080
 metrics_listen_addr: 127.0.0.1:9090
 noise:
@@ -45,17 +45,17 @@ prefixes:
   allocation: sequential
 derp:
   server:
-    enabled: true
-    region_id: 901
-    region_code: dialhome
-    region_name: dialhome DERP
-    verify_clients: false
-    stun_listen_addr: 0.0.0.0:3478
-    private_key_path: /var/lib/headscale/derp_server_private.key
-    automatically_add_embedded_derp_region: true
-    ipv4: 139.9.101.203
-  urls: []
-  auto_update_enabled: false
+    enabled: false
+  # Data plane relay: Tailscale PUBLIC DERP network (headscale documented
+  # usage). The embedded DERP does not work over a plain-http control plane
+  # (DERP clients force TLS -- CI-proven "first record does not look like a
+  # TLS handshake"), and 139's security group only opens 22/tcp. The control
+  # plane rides SSH tunnels (22); the data plane rides the public DERP relay
+  # (WireGuard E2E encryption unchanged; 139 carries no data-plane traffic).
+  # Standalone DERP + TLS via Caddy is the production upgrade (ADR-001).
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  auto_update_enabled: true
 disable_check_updates: true
 node:
   expiry: 0
@@ -124,7 +124,7 @@ Wants=headscale.service
 [Service]
 ExecStart=$INSTALL/hs-controller serve --listen 127.0.0.1:8800 \
   --headscale-bin $INSTALL/headscale --headscale-config /etc/headscale/config.yaml \
-  --headscale-user ci --server http://139.9.101.203:8080 \
+  --headscale-user ci --server http://127.0.0.1:8080 \
   --policy-file /etc/headscale/policy.json
 User=dialhome
 Environment=HOME=/var/lib/dialhome-hs
