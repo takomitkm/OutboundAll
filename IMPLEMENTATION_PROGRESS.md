@@ -19,7 +19,9 @@
     6. 中途踩坑（已修）：preauth key 注册时 `advertise_tags` 被 headscale 拒（tags 必须来自 key 本身）；headscale policy 路径漂移（controller 写新路径、headscale 读旧路径）；controller --server 每次 deploy 被旧值覆盖（手动 sed 无效，已改 deploy.sh）
     7. 中途踩坑（已修）：Windows ssh-keygen `-N ""` 生成带口令私钥（A1 坑）——密钥改在 139 生成后下发，AUTH-OK
     8. 中途踩坑（已修）：schtasks 下 sing-box Taildrop 相对路径落到 system32 被拒（已 pin taildrop_directory 到 state 目录）
-  - **结论**：控制面跨网完全可用；数据面的最后一公里 = 客户端 DERP 路径选择（envknob 开关在本环境是否生效、sing-box 是否屏蔽了该 env 无法证实）。可继续方向：需要能在 Windows 上跑 Go 编译带日志的 sing-box fork，或用户提供域名+开 443 走标准 TLS 路径绕开调试开关
+  - **结论（终局取证）**：在 139 上用官方 tailscale 1.104.7 做了最小复现——设 `TS_DEBUG_USE_DERP_HTTP=1` 后客户端日志仍报 `context deadline exceeded` 连 DERP（tailscaled.log），而 curl 到同一 DERP 端点（8080 与 18080）均实测 101 Switching Protocols + DERP v2；headscale DERP map 正确（127.0.0.1:18080）。即**明文 DERP 的 envknob 开关在本版本对客户端路径无效**（疑似正式构建裁剪了 debugUseDERPHTTP 或经控制面下发的 derp URL 强制 https）。tailscale status 的 health 明确报 "could not connect to DERP relay server"。
+  - **唯一确定可行路径**：DERP over TLS + 客户端信任证书 ⇒ 需要一个域名（Let's Encrypt 签证书，系统根 CA 已信任）+ VPS 入站 443/tcp。Tailscale 没有"信任自定义 CA"的配置项（types.go 的 InsecureForTests 仅单测用），自签证书对端不认。
+  - 用户旧版 dialhome 之所以"只要能联网就受控"，是因为 relay 的 SSH 端口本身就是会合点（数据在控制连接里）；Tailscale 架构把两者拆开，DERP 必须可认证 TLS——这是模型差异，不是配置错误。
   - 真机部署缺陷共修复 8 个（CI 无法模拟的）：226/NAMESPACE、数据目录属主、socket 权限、H6 分叉、policy 属主、deploy restart 语义、controller --server 漂移、taildrop CWD
 - **Phase 9 完成（真机 139.9.101.203, 2c/1G）**：DEPLOY-OK 双健康端点；真机全链冒烟（invite→enroll→revoke→deny resume→policy 同步 deny）。真机抓出并修复 5 个部署级缺陷（CI 无法模拟的）：systemd 226/NAMESPACE（RuntimeDirectory）、controller 数据目录属主、headscale unix socket 权限（双服务改 dialhome 用户）、H6 类分叉状态（root init vs dialhome serve 的 store 路径）、policy 文件属主（revoke 时 reload 被拒）。资源占用 headscale 53MB + controller 10MB = 63MB（1G 预算内）。
 - **Phase 7 完成（run 87e7c3f 全 5 job 绿）**：H4a 控制面停 15s 节点存活、H4b 恢复后同身份重连（无重复注册）。九类失败全部有证据或排除记录（ADR-004 终稿表）；DERP 多 region 为部署产物（Phase 9 真机可加）。
