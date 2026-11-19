@@ -34,7 +34,7 @@ echo "== 3) headscale config =="
 mkdir -p /etc/headscale /var/lib/headscale
 if [ ! -f /etc/headscale/config.yaml ]; then
   cat > /etc/headscale/config.yaml <<EOF
-server_url: http://127.0.0.1:8080
+server_url: http://127.0.0.1:18080
 listen_addr: 0.0.0.0:8080
 metrics_listen_addr: 127.0.0.1:9090
 noise:
