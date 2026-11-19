@@ -29,15 +29,20 @@
 
 ## 2. 角色与进程
 
+传输组件按角色分配（ADR-007）：**受控端 sing-box（唯一 fork 依赖），其余一律上游原版。**
+
 | 角色 | 进程 | 位置 | 权限 |
 |---|---|---|---|
 | Windows 节点 | `hs-node.exe`（supervisor，包装 sing-box） | `%LOCALAPPDATA%\Dialhome\bin\` | 标准用户，无提升 |
 | Windows 节点 | `sing-box.exe`（tailscale endpoint userspace + ssh_server） | 同上 | 标准用户 |
-| Linux 控制面 | `headscale` | systemd 服务 | 专用低权用户 |
-| Linux 中继 | headscale 内嵌 DERP | 同进程 | 同上 |
+| Linux 控制面 | `headscale`（上游，钉 0.29.7） | systemd 服务 | 专用低权用户 |
+| Linux 中继 | `derper`（上游 v1.102.1，CI 构建；自签 IP 证书 + DERP map 指纹 pin） | systemd 服务 | 专用低权用户 |
 | Linux 管理面 | `hs-controller` | systemd 服务 | 专用低权用户 |
-| Linux 控制端 | 官方 `tailscaled` + `tailscale` | systemd（root，tailscaled 常规形态） | controller tailnet 身份持有者 |
-| 运维 CLI | `hs-admin` | 任意机器 | 经 hs-controller API + tailscale ssh |
+| 管理机 | 官方 `tailscale` 客户端（controller tailnet 身份持有者） | 本机用户级 | hs-admin 开箱即用（default socket） |
+| 运维 CLI | `hs-admin` | 管理机 | 经 hs-controller API + tailscale ssh/nc |
+
+Linux 节点（将来出现时）不用 sing-box：官方 tailscaled 自带 Tailscale SSH server，
+直接 `tailscale up --login-server` 登记（ADR-007 D1 的"约束解除即换回上游"）。
 
 ## 3. 数据布局（全用户级 / 全低权）
 

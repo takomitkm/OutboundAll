@@ -111,19 +111,21 @@ jobs:
         with:
           go-version: '1.27'
           cache: true
-      - name: build hs binaries
+      - name: build binaries + role-split packages
         run: |
-          mkdir -p dist
-          GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/hs-controller-linux-amd64 ./hs/cmd/hs-controller
-          GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/hs-node-linux-amd64 ./hs/cmd/hs-node
-          GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/hs-admin-linux-amd64 ./hs/cmd/hs-admin
-          GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/hs-deploycheck-linux-amd64 ./hs/cmd/hs-deploycheck
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/hs-node-windows-amd64.exe ./hs/cmd/hs-node
-          cd dist && sha256sum * > SHA256SUMS
+          chmod +x scripts/package.sh
+          ./scripts/package.sh "${{ github.ref_name }}-${{ github.sha }}"
       - uses: actions/upload-artifact@v4
         with:
           name: hs-dist
-          path: dist/
+          path: |
+            dist/
+            !dist/packages/
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hs-packages
+          path: dist/packages/
           retention-days: 30
 
   hs-e2e:

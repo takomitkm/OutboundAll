@@ -74,6 +74,7 @@
 | T14 | 撤销节点重连 | 实现+测试：headscale expire + ACL 移除 + 邀请作废 + resume 403 | N6'/N7' (phase3 e2e) |
 | T15 | 服务暴露（转发面） | 实现+测试：**双闸**——headscale grant(WHO) × node route allowlist(WHAT, reject-all 兜底)；未列端口黑洞 | G1 gates (run fad7a51) |
 | T16 | 日志/备份泄漏 | 实现：logging 脱敏（N14'）；**安全发现**：控制器 API 401/403 响应等无密钥输出；备份含 db+token，权限 0600（OPERATIONS §4）| TestRedact 系列 |
+| T17 | derper 公开中继滥用（ADR-007 新增） | 设计：derper 不验证客户端（headscale 无 DERPAdmitClientRequest 准入端点，`-verify-clients` 需本地 tailscaled）→ 443 开放后任何人都可借道转发密文；缓解 = `-accept-connection-limit/burst` 限流 + 安全组闸门 + 中继只见元数据（同 T6 协议保证） | ADR-007 D5；OPERATIONS §7 |
 
 **净安全发现（本重构期间 CI 抓出并已修）**：
 1. sing-box 裸默认把 tailnet 入站转发到同端口回环（任意回环暴露）→ reject-all 兜底（ADR-005）

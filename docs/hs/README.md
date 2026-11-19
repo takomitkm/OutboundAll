@@ -25,3 +25,4 @@
 | [004](ADR/004-anchor-failover.md) | 锚点/故障转移（九类失败映射） | Accepted（H4a/H4b 实证） |
 | [005](ADR/005-service-forwarding.md) | 服务转发（双闸模型、reject-all） | Accepted（G1-a 实证） |
 | [006](ADR/006-ssh-server-security-gate.md) | SSH server 安全门控（fork 版本缺口） | 门控生效中 |
+| [007](ADR/007-role-transport-assignment.md) | 按角色分配传输组件（受控端 sing-box，其余上游原版；derper 自签+指纹 pin 取代"必须域名"） | Accepted |

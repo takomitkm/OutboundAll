@@ -6,13 +6,15 @@
 ## 1. 部署 / 升级（幂等）
 
 ```bash
-# 本地（Actions artifact 下载后）：
-scp hs-controller hs-node hs-deploycheck root@139.9.101.203:/usr/local/bin/
-scp hs/deploy/deploy.sh root@139.9.101.203:/root/
+# 本地（dialhome-server 包 = CI artifact 或 GitHub Release 附件，解包即得）：
+tar xzf dialhome-server-linux-amd64.tar.gz -C /tmp/srv
+scp /tmp/srv/hs-controller /tmp/srv/hs-deploycheck /tmp/srv/derper root@139.9.101.203:/usr/local/bin/
+scp /tmp/srv/deploy.sh root@139.9.101.203:/root/
 ssh root@139.9.101.203 'bash /root/deploy.sh <version-tag>'
 ```
 
-deploy.sh 幂等：重跑 = 原地升级；headscale 配置只在首次生成（不覆盖已有）。
+deploy.sh 幂等：重跑 = 原地升级（binaries/units 重写；headscale 配置权威重写、
+旧稿存 config.yaml.bak-<ver>；DERP map 按当前证书重算指纹）。
 
 ## 2. 日常检查
 
@@ -44,31 +46,34 @@ ssh root@139.9.101.203 'tar czf /root/dialhome-hs-backup-$(date +%F).tgz \
 
 | 端口 | 用途 |
 |---|---|
-| 22/tcp | ssh 管理（已有） |
-| 3478/udp | STUN（DERP 打洞） |
+| 22/tcp | SSH 管理 + 控制面/管理面隧道（节点与 admin 机各自 `-L` 转发） |
+| 443/tcp | derper（数据面中继；自签 IP 证书 + 客户端指纹 pin，ADR-007 D4） |
+| 3478/udp | STUN（可选；未开放前 DERP map 里 STUNPort=-1） |
 
-控制面 8080 与管理面 8800 **只绑 127.0.0.1**——节点从公网经 DERP/直连连控制面时，
-通过 DERP over HTTPS 的 443…（注：单 VPS 初始部署里，tailnet 控制连接走 DERP over
-HTTPS 443 由 headscale 自身提供；如需对外暴露 8080，上 Caddy TLS，见 §6）。
+控制面 8080 与管理面 8800 **只绑 127.0.0.1**，不经公网暴露：节点/管理机的控制连接
+全部走各自的 SSH 隧道（`-L 18080:127.0.0.1:8080`，server_url 保持隧道口径）。
+数据面（tailnet 流量）走 443 的 derper，WireGuard 端到端加密不变。
 
-## 6. TLS（升级路径，未默认启用）
+## 6. DERP 证书轮换（ADR-007 D4，替代旧 Caddy TLS 升级路径）
 
-控制面现在 http://127.0.0.1:8080 只监听回环——纯本机部署/单机演示用。
-要接真节点（跨网络），启用 Caddy：
+derper `-certmode=manual -hostname=<IP>` 首次启动自动生成自签 IP 证书
+（ECDSA P-256，SAN=IP，1 年期，存 `/var/lib/dialhome-derp/`）。轮换：
 
+```bash
+systemctl stop dialhome-derp
+rm /var/lib/dialhome-derp/139.9.101.203.{crt,key}   # 或等 1 年自然过期后重跑
+bash /usr/local/bin/deploy.sh <ver>                  # 重启 derper→重算指纹→重写 map→重启 headscale
 ```
-hs.example.net {
-  reverse_proxy 127.0.0.1:8080
-}
-```
 
-然后 `server_url` / `control_url` 改 https 并 re-enroll 节点（节点配置的
-TestAllowHTTP 为 false，生产环境强制 https——见 ADR-001 / SECURITY_MODEL）。
+客户端无需任何改动：新指纹随 DERP map 下发（update_freq 1m），旧 pin 自动失效。
+不需要域名、不需要 Let's Encrypt、不需要续期基建——这是对 a11d17f
+"only domain+443 TLS" 结论的取代（证据链见 ADR-007 D4）。
 
 ## 7. 已知部署边界
 
 - 管理面 HTTP 无 TLS：凭据是 Bearer token，明文仅限本机回环；跨机管理请走
   `ssh -L 8800:127.0.0.1:8800` 隧道。
-- DERP `verify_clients: false`：初始部署开放中继（见 ADR-006 生产门控同理）；
-  收紧 = true + 所有节点登记后。
-- 2c/1G 资源：headscale+controller 常驻 <100MB；不要在这台机编译/跑 e2e。
+- derper 公开中继（T-17）：不验证客户端（headscale 无 DERPAdmitClientRequest
+  准入端点、`-verify-clients` 需本地 tailscaled），任何能连 443 者可借道转发密文；
+  缓解 = 连接限流旗标 + 安全组闸门 + 中继只见元数据（ADR-007 D5）。
+- 2c/1G 资源：headscale+controller+derper 常驻 <150MB；不要在这台机编译/跑 e2e。

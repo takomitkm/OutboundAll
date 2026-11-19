@@ -89,3 +89,36 @@
 | D8 | 不造 Anchor Manager | ADR-004 |
 | — | 开放开户口（bootstrap 18443）不做 | ADR-002（邀请码为登记唯一入口） |
 | — | 迁移=重新登记（不能逐字节迁身份） | ADR-002（身份体系变更的本质结果） |
+
+## Phase 13 — 架构分家（受控端 sing-box，其余上游原版）+ 安装包拆分 + CD（2026-11-20）
+
+远端对齐：本地 main = origin/main = d377064（唯一远端新增 = LICENSE AGPL-3.0，他线推入，线性无冲突）。
+校机确认无源码 repo（仅运行时目录 %LOCALAPPDATA%\Dialhome），不需建。
+
+**ADR-007**（docs/hs/ADR/007-role-transport-assignment.md）四决定 + 一账：
+- D1 受控节点 = sing-box（默认；约束解除即换回官方，如 Linux 节点）
+- D2 管理机 = 官方 tailscale 客户端——**代码零改动**（admincli/ssh.go 本就按官方 CLI 设计，
+  空 socket = 官方客户端默认端点）；测试期的 sing-box socks 测试架（.tmp/launch-ctrl.py）非产品形态
+- D3 服务端中继 = 官方 derper v1.102.1（与 fork 基线同源，CI 构建，无官方发布件）
+- D4 自签 IP 证书 + DERP map 指纹 pin——**推翻 a11d17f "only domain+443 TLS"**：
+  v1.102.1 证据链 = derphttp_client.go:669（CertName sha256-raw → tlsdial 指纹校验）、
+  net/tlsdial.go:312（IP 直连免主机名匹配）、cmd/derper/cert.go:116（manual+IP 自动自签
+  ECDSA P-256 1 年期证书并打印 CertName 提示）。域名/LE/续期基建全部不需要
+- D5 公开中继账（T-17）：derper 不验证客户端（headscale 无准入端点），限流旗标 + SG 闸门缓解
+
+**deploy.sh v2**：derper systemd 单元（dialhome 用户、限流、ProtectSystem）→ 首启自动出证书 →
+openssl 算 DER sha256 → 写 /etc/headscale/derp-dialhome.json（RegionID 900、STUNPort -1）→
+headscale 配置权威重写（listen_addr 收紧 127.0.0.1、derp.urls=[]→paths=map 文件、备份旧稿）→
+摘 18080 nc 遗留桥（校机隧道本来就是 -L 18080→8080 直连）。
+
+**安装包**（scripts/package.sh，CI/CD 共用）：server（hs-controller+hs-deploycheck+derper+deploy.sh，
+tar.gz）/ client（hs-node，win zip + linux tar.gz；sing-box 由 install-singbox 运行时取）/
+admin（hs-admin，win zip + linux tar.gz）+ SHA256SUMS；原始二进制保留 hs-dist artifact。
+新增 hs-admin windows 构建（此前只有 linux）。
+
+**CI**：hs-build 改调 package.sh（产物 hs-dist + hs-packages 两 artifact）。
+**CD**：release.yml 新增——tag push（v*）自动构建并 gh release create --generate-notes
+（已存在则 --clobber 重传），workflow_dispatch 手动兜底。
+
+待办：安全组 443 开放 → 139 重部署（derper 上线）→ 139 本机 selftest 验 pin 全链 →
+两端重注册 → 端到端 tailscale-ssh。

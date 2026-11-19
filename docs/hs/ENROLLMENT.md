@@ -27,12 +27,28 @@
         2. sing-box 以新 key 注册 → 控制面记录 pending→active
 ```
 
-## 3. 崩溃安全
+## 3. 管理机登记（官方 tailscale 客户端，ADR-007 D2）
+
+管理机不装 sing-box、不跑 hs-node——controller tailnet 身份直接由官方客户端持有：
+
+```bash
+# 1. 运维发一枚 tag 为 dialhome-controller 的 key：
+hs-admin invite create --label local-admin   # 或在 VPS 上用 headscale preauthkeys create --tags tag:dialhome-controller
+# 2. 管理机装官方 tailscale 客户端，登记到自托管控制面（控制面经 SSH 隧道可达）：
+tailscale up --login-server http://127.0.0.1:18080 --authkey <KEY> --accept-dns=false
+# 3. hs-admin 开箱即用（default socket 即官方客户端；Windows=命名管道）：
+hs-admin doctor --api http://127.0.0.1:18800
+hs-admin shell <node>
+```
+
+数据面（管理机 → 节点）与受控端无关，走 tailnet + 自托管 derper 中继（ADR-007 D3/D4）。
+
+## 4. 崩溃安全
 
 redeem 与注册间崩溃：邀请进入 `redeemed(未完成)` 态，同 enroll 会话可续传，超时作废
 ——不留歧义重复节点（N5'：并发兑换恰一路成功，CI 实证）。
 
-## 4. 撤销
+## 5. 撤销
 
 ```bash
 hs-admin node revoke <id>     # headscale expire + ACL 移除 + 墓碑 + 名下邀请作废
@@ -41,7 +57,7 @@ hs-admin invite revoke <id>   # 只作废未消费邀请
 撤销后：新连接拒绝（N6'）、resume 403（N7'）、已建会话按 G3 观察如实记录
 （expire 不即时杀会话——与参考实现同口径）。
 
-## 5. 服务暴露（Phase 6）
+## 6. 服务暴露（Phase 6）
 
 节点 config.json 的 `services: [{name, target "127.0.0.1:PORT"}]` 声明回环服务；
 headscale grant（tcp:P）+ 节点 route allowlist 双闸；未列端口 reject-all。
