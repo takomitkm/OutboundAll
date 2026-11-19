@@ -71,7 +71,7 @@ derp:
   paths:
     - $DERPMAP
   auto_update_enabled: false
-  update_freq: 1m
+  update_frequency: 1m
 disable_check_updates: true
 node:
   expiry: 0
@@ -162,7 +162,11 @@ Wants=network-online.target
 [Service]
 User=dialhome
 Group=dialhome
+# non-root bind on :443
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 ExecStart=$INSTALL/derper -hostname=$VPS_IP -certmode=manual -certdir=$DERPDIR \
+  -c $DERPDIR/derper.key \
   -a=:443 -http-port=-1 -home=blank \
   -accept-connection-limit=10 -accept-connection-burst=20
 ExecStartPre=+/bin/mkdir -p $DERPDIR
@@ -190,8 +194,22 @@ fi
 
 echo "== 6) DERP map with cert fingerprint pin (ADR-007 D4) =="
 FP=$(openssl x509 -in "$CERT" -outform DER | sha256sum | cut -d' ' -f1)
+# headscale loads derp.paths with yaml.v3 into tailcfg.DERPMap (no yaml tags ->
+# all-lowercase keys); JSON is NOT accepted (parses empty)
 cat > $DERPMAP <<EOF
-{"Regions":{"900":{"RegionID":900,"RegionCode":"dialhome","RegionName":"dialhome-vps","Nodes":[{"Name":"900a","RegionID":900,"HostName":"$VPS_IP","CertName":"sha256-raw:$FP","DERPPort":443,"STUNPort":-1,"InsecureForTests":false}]}}}
+regions:
+  900:
+    regionid: 900
+    regioncode: dialhome
+    regionname: dialhome-vps
+    nodes:
+      - name: 900a
+        regionid: 900
+        hostname: $VPS_IP
+        certname: sha256-raw:$FP
+        derpport: 443
+        stunport: -1
+        insecurefortests: false
 EOF
 chmod 644 $DERPMAP
 echo "derp map pinned to cert sha256-raw:$FP"
