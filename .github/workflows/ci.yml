@@ -21,6 +21,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
+      # Windows runner images default to core.autocrlf=true: checkout rewrites every
+      # Go file to CRLF and gofmt -l then flags all of them. Normalize before checkout.
+      - name: normalize git line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
@@ -43,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
+      - name: normalize git line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
@@ -64,6 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
+      - name: normalize git line endings
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
