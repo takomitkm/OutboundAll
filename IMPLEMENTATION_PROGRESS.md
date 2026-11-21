@@ -139,3 +139,19 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
 - 校机启动脚本残留 TS_DEBUG_USE_DERP_HTTP=1 → 明文打 TLS derper；已删并重启
 
 清理：139 上自测遗留 tailscaled（tselftest）已删；宿主机 vps-admin 保留为管理身份。
+
+## Phase 13c — 管理机在本机落地（2026-11-22 真机）
+
+装官方 Tailscale 客户端（MSI → 服务模式，Automatic），登记为 local-admin-2（100.64.0.10）：
+- `tailscale ping win11-hv1` → `pong via DERP(dialhome) 22ms`
+- `tailscale ssh YiZhidi@win11-hv1` → `Win11-HV1 / 7.7.0` rc=0
+- `hs-admin doctor` → `tailscale state: Running`；`hs-admin exec win11-hv1` → `Win11-HV1` rc=0
+- 控制面隧道做成登录任务 `DialhomeControlTunnel`（18080/18800，断线自愈）
+
+真机踩坑（已写进 ENROLLMENT §3 实装记录）：
+1. 用户态 dev-mode 不可用于日常：后端随最后客户端断开而停；`tailscale ssh` 在自定义
+   命名管道上 `The specified path is invalid`（1.104.7 Windows 缺陷）；AF_UNIX 不支持。
+2. **从 S: 盘执行 hs-admin → 其子进程打管道 `Access is denied`；复制到 C: 后 rc=0。**
+   （S: 是本地固定 NTFS，但该卷上执行会得到受限令牌；管理机二进制一律放本地 C: 盘。）
+3. 本机还残留 `TS_DEBUG_USE_DERP_HTTP=1` 用户环境变量（早期实验），会令 DERP 走明文
+   HTTP 打 443 而失败——已删除。

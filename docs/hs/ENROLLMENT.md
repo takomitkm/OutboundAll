@@ -43,6 +43,21 @@ hs-admin shell <node>
 
 数据面（管理机 → 节点）与受控端无关，走 tailnet + 自托管 derper 中继（ADR-007 D3/D4）。
 
+### Windows 管理机实装记录（2026-11-22 真机）
+
+1. **官方客户端用 MSI 装成服务**（`tailscale-setup-1.104.7-amd64.msi`，需管理员点一次 UAC）。
+   服务模式走默认命名管道 `\\.\pipe\ProtectedPrefix\Administrators\Tailscale\tailscaled`，
+   `tailscale ssh` / `hs-admin` 才能开箱即用。
+2. **用户态（免管理员）能跑但不是可用形态**：dev 模式下后端随最后一个客户端断开而停，
+   `tailscale ssh` 在自定义命名管道上直接报 `The specified path is invalid`（1.104.7
+   Windows 平台缺陷，`ssh` 子命令拼 ProxyCommand 时把管道路径转义坏）；AF_UNIX 文件套接字
+   Windows 不支持（`namedpipe.Listen` 只认管道）。**结论：Windows 管理机就用 MSI 服务模式。**
+3. **hs-admin 必须放在本地固定盘**（如 `%LOCALAPPDATA%\Dialhome-admin\`）。实测从 `S:`
+   盘执行同一份二进制时，其派生的 `tailscale` 子进程打服务管道报 `Access is denied`
+   （受限令牌），同一命令从 `C:` 执行 rc=0。
+4. **控制面隧道做成登录任务**（`DialhomeControlTunnel`）：`ssh -N -L 18080:...:18080
+   -L 18800:...:8800 root@139`，断线 1 分钟自愈。Tailscale 服务本身是 Automatic。
+
 ## 4. 崩溃安全
 
 redeem 与注册间崩溃：邀请进入 `redeemed(未完成)` 态，同 enroll 会话可续传，超时作废
