@@ -155,3 +155,14 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
    （S: 是本地固定 NTFS，但该卷上执行会得到受限令牌；管理机二进制一律放本地 C: 盘。）
 3. 本机还残留 `TS_DEBUG_USE_DERP_HTTP=1` 用户环境变量（早期实验），会令 DERP 走明文
    HTTP 打 443 而失败——已删除。
+
+## Phase 13d — STUN 开启与直连结论（2026-11-22 真机）
+
+- derper 一直在 `3478/udp` 跑 STUN（默认 `-stun=true`），但 DERP map 宣告 `stunport: -1`
+  让客户端不用；已改为 `stunport: 3478`（SG 已放行 3478/udp）。本机 netcheck 变为
+  `UDP: true`、公网映射 `183.36.189.192:46863`。
+- **直连仍不可行**：peer `Endpoints=[]`、`CurAddr=[]`、`Relay=dialhome`——sing-box 的
+  tailscale endpoint 不上报 UDP 端点，打洞没有候选地址。`tailscale ping` 恒走 DERP。
+- 顺带修掉两个真机 bug：deploy.sh 的 18080 "遗留 nc 清理"在单端口化后会**误杀
+  headscale 本体**（已加进程名判定，只杀 nc）；`hs-deploycheck` 默认探活端口
+  8080 → 18080（源码+调用点都改了）。

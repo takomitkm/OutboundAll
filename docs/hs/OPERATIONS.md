@@ -48,7 +48,7 @@ ssh root@139.9.101.203 'tar czf /root/dialhome-hs-backup-$(date +%F).tgz \
 |---|---|
 | 22/tcp | SSH 管理 + 控制面/管理面隧道（节点与 admin 机各自 `-L` 转发） |
 | 443/tcp | derper（数据面中继；自签 IP 证书 + 客户端指纹 pin，ADR-007 D4） |
-| 3478/udp | STUN（可选；未开放前 DERP map 里 STUNPort=-1） |
+| 3478/udp | STUN（2026-11-22 起开启并写入 map）。注意：只有做端点发现的客户端才用得上；sing-box 受控端不上报端点（见 ADR-007 Verification），所以当前不会因此变直连 |
 
 控制面 18080 与管理面 8800 **只绑 127.0.0.1**，不经公网暴露：节点/管理机的控制连接
 全部走各自的 SSH 隧道（`-L 18080:127.0.0.1:18080`，server_url 与监听同端口，无中间桥）。

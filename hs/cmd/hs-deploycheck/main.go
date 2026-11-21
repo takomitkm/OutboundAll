@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	hsHealth := flag.String("hs-health", "http://127.0.0.1:8080/health", "headscale health URL")
+	hsHealth := flag.String("hs-health", "http://127.0.0.1:18080/health", "headscale health URL")
 	ctlHealth := flag.String("controller", "http://127.0.0.1:8800/api/v1/health", "hs-controller health URL")
 	flag.Parse()
 	fail := 0

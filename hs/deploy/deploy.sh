@@ -7,8 +7,8 @@
 #                                               + DERP-map fingerprint pin (CertName)
 #   hs-controller / hs-deploycheck           -- management plane
 #
-# Security groups: 22/tcp (tunnels, already open) + 443/tcp (DERP). 3478/udp
-# optional (STUN); the shipped DERP map sets STUNPort -1 until it is opened.
+# Security groups: 22/tcp (tunnels) + 443/tcp (DERP) + 3478/udp (STUN, needed
+# for direct peer-to-peer hole punching; relay keeps working without it).
 #
 # Idempotent: re-running upgrades binaries and unit files in place, regenerates
 # the DERP map fingerprint from the current cert, and rewrites headscale config
@@ -210,7 +210,7 @@ regions:
         hostname: $VPS_IP
         certname: sha256-raw:$FP
         derpport: 443
-        stunport: -1
+        stunport: 3478
         insecurefortests: false
 EOF
 chmod 644 $DERPMAP
@@ -233,15 +233,19 @@ systemctl restart hs-controller
 sleep 3
 
 echo "== 8) leftover cleanup: nc bridge on 18080 (pre-deploy hack) =="
-# headscale advertises server_url port 18080 but never listened there; a
-# netcat bridge filled the gap during cross-network debugging. Client tunnels
-# map 18080 -> 8080 directly, so any nc listener on 18080 is stale.
-NC_PID=$(ss -tlnp 2>/dev/null | grep ':18080 ' | grep -oP 'pid=\K[0-9]+' | head -1 || true)
-if [ -n "${NC_PID:-}" ]; then
-  echo "killing stale 18080 listener (pid $NC_PID: $(ps -o cmd= -p "$NC_PID" 2>/dev/null || true))"
-  kill "$NC_PID" 2>/dev/null || true
-fi
+# Historical: the control plane advertised 18080 but listened on 8080, bridged
+# by a netcat loop. headscale now listens on 18080 ITSELF, so a listener there
+# is normally headscale -- only a netcat process is stale (2026-11-22: this
+# check killed headscale itself when the port moved).
+for pid in $(ss -tlnp 2>/dev/null | grep ':18080 ' | grep -oP 'pid=\K[0-9]+' || true); do
+  cmd=$(ps -o cmd= -p "$pid" 2>/dev/null || true)
+  case "$cmd" in
+    *headscale*) echo "18080 listener is headscale (pid $pid) -- kept" ;;
+    *nc*|*netcat*) echo "killing stale nc bridge (pid $pid: $cmd)"; kill "$pid" 2>/dev/null || true ;;
+    *) echo "18080 listener is not headscale and not nc (pid $pid: $cmd) -- kept" ;;
+  esac
+done
 
 echo "== 9) availability =="
-"$INSTALL/hs-deploycheck" || true
+"$INSTALL/hs-deploycheck" -hs-health http://127.0.0.1:18080/health || true
 echo "deploy $VER done (version: $INSTALL/*; derp: $DERPMAP; check: hs-deploycheck)"

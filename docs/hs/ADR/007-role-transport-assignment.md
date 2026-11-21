@@ -102,6 +102,19 @@ DERP** 成立（embedded DERP 的证书跟随 server_url，无法在 DERP map �
    `tailscale ssh YiZhidi@win11-hv1` 在 Windows 校机上执行成功。
 5. **控制面单端口化**：headscale 直接监听 18080 后，管理机注册一次成功；
    旧 nc 单连接桥导致"注册回退 https 卡死"（OPERATIONS §5 教训）。
+7. **直连（打洞）实测：不可行，中继是设计内的常态**（2026-11-22，SG 已开 3478/udp）：
+   - 本机 netcheck（STUN 生效后）：`UDP: true`，公网映射 `183.36.189.192:46863`；
+     校机 UDP 出站实测可收发（STUN 到公网服务器有回包）——**两边 UDP 都不是硬阻**。
+   - 但 `tailscale status --json` 里 peer 的 `Endpoints` 恒为空、`CurAddr` 为空、
+     `Relay=dialhome`：**sing-box 的 tailscale endpoint 从不向控制面上报 UDP 端点**，
+     对端没有候选地址可打 → 打洞无从发生，`tailscale ping` 恒为
+     `via DERP(dialhome)` + `direct connection not established`。
+   - 结论：**在"受控端跑 sing-box"这一前提下，数据面注定走中继**（这是放弃官方
+     tailscaled 换取免管理员的代价）。想要直连只有两条路：(a) 受控端改跑官方
+     tailscaled（要管理员，违背本架构出发点）；(b) 换一个会上报端点的客户端实现。
+     中继模式下 WireGuard 端到端加密不受影响，只是带宽/时延受 VPS 限制。
+   - STUN 仍保留（3478/udp）：对将来会上报端点的客户端有用，且无副作用。
+
 6. **执行环境注记**：校机 ssh_server 远端 shell 是 PowerShell 7.7，
    `hostname`/`whoami` 裸名解析不到（PATH 有 system32 但解析失败），
    `hs-admin exec` 请用 cmdlet 或全路径（如 `$env:COMPUTERNAME`、
