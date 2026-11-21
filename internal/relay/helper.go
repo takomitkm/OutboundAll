@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/crypto"
 )
 
 var (
@@ -142,7 +142,7 @@ func (h *Helper) helperPathFromArgs() string {
 	if len(os.Args) > 0 {
 		return os.Args[0]
 	}
-	return "dialhome"
+	return "OutboundAll"
 }
 
 func (h *Helper) check(port int) (string, int) {

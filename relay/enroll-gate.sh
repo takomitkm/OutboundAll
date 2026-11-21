@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# enroll-gate.sh -- forced command for the DIALHOME ENROLL KEY.
+# enroll-gate.sh -- forced command for the OUTBOUNDALL ENROLL KEY.
 #
 # The enroll key exists so a brand-new machine can enroll WITHOUT the 102 password
 # (typing that password on an untrusted machine is the real risk -- a keylogger there
@@ -11,7 +11,7 @@
 #   get magpie        dump the portable magpie exe     (public)
 #
 # Everything else is refused. No shell, no forwarding, no file listing.
-# Revoking enrollment = delete the "dialhome-enroll-gate" line from authorized_keys.
+# Revoking enrollment = delete the "OutboundAll-enroll-gate" line from authorized_keys.
 set -eu
 BASE="$HOME/.magpie-connector"
 GATE_LOG="$BASE/enroll-gate.log"

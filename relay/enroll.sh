@@ -108,7 +108,7 @@ if [ "$MAG" = "1" ] || [ -z "$QUIET" ]; then
 fi
 KEY_B64="$(base64 -w0 "$KEY")"
 EK_B64=''
-[ -f "$HOME/.ssh/dialhome_enroll" ] && EK_B64="$(base64 -w0 "$HOME/.ssh/dialhome_enroll")"
+[ -f "$HOME/.ssh/OutboundAll_enroll" ] && EK_B64="$(base64 -w0 "$HOME/.ssh/OutboundAll_enroll")"
 cat <<EOF
 \$ErrorActionPreference = 'Continue'
 \$KeyB64 = '$KEY_B64'
@@ -137,13 +137,13 @@ if (\$UrlMagpie -eq '1' -and \$SetupSrc) {
     [IO.File]::WriteAllBytes(\$sm, [Convert]::FromBase64String(\$SetupSrc))
     \$smArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', \$sm, '-Acquire', '-RelayHost', '$RELAY_HOST', '-RelayPort', '$RELAY_PORT', '-RelayUser', '$RELAY_USER')
     if (\$UrlGlm -eq '1') { \$smArgs += @('-Plugin', '-Login') }
-    Write-Host '[dialhome] installing magpie...'
+    Write-Host '[OutboundAll] installing magpie...'
     & powershell @smArgs
 }
 if (\$UrlMode -eq 'tmp') {
-    Write-Host '[dialhome] 暂时连接: 隧道前台运行, Ctrl+C 或关窗即断开'
+    Write-Host '[OutboundAll] 暂时连接: 隧道前台运行, Ctrl+C 或关窗即断开'
     if (\$tunPath) { & powershell -NoProfile -ExecutionPolicy Bypass -File \$tunPath }
 } else {
-    Write-Host '[dialhome] 持久连接完成: 自启动已注册, D:\ 脚本与 C:\ 备份已就位'
+    Write-Host '[OutboundAll] 持久连接完成: 自启动已注册, D:\ 脚本与 C:\ 备份已就位'
 }
 EOF

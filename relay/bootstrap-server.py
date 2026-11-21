@@ -14,7 +14,7 @@ Security model (owner's call: OPEN enrollment -- no token):
   * reconcile-machines.sh audits what got enrolled and auto-merges duplicate
     hardware identities
 
-Run (systemd, as user): see dialhome-bootstrap.service in this directory.
+Run (systemd, as user): see OutboundAll-bootstrap.service in this directory.
 """
 import http.server
 import json
@@ -102,7 +102,7 @@ def log(msg):
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
-    server_version = "dialhome-bootstrap/1"
+    server_version = "OutboundAll-bootstrap/1"
     protocol_version = "HTTP/1.1"
 
     def log_message(self, *a):  # silence default stderr logging
@@ -120,7 +120,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """Errors come back as VALID PowerShell: the client does iex(curl ...), so a
         plain-text error would explode as 'command not found'. A comment + a
         Write-Host hint degrades to one readable yellow line instead."""
-        body = "# dialhome bootstrap: %s\nWrite-Host '[dialhome] %s' -ForegroundColor Yellow\n" % (msg, msg)
+        body = "# OutboundAll bootstrap: %s\nWrite-Host '[OutboundAll] %s' -ForegroundColor Yellow\n" % (msg, msg)
         self.send_response(code)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(body.encode("utf-8"))))
@@ -203,7 +203,7 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 18443
     bind = sys.argv[2] if len(sys.argv) > 2 else "0.0.0.0"
     log(f"listening on {bind}:{port}")
-    print(f"dialhome bootstrap on {bind}:{port} (open enrollment -- no token)")
+    print(f"OutboundAll bootstrap on {bind}:{port} (open enrollment -- no token)")
     Server((bind, port), Handler).serve_forever()
 
 

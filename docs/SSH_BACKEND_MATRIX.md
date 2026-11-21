@@ -9,7 +9,7 @@
 |---|---|
 | 系统 / OpenSSH | Debian 13（trixie）/ **openssh 1:10.0p1-7+deb13u4** |
 | 运行身份 | 普通用户 `user`（无 sudo，全程未提权） |
-| 部署位置 | 全部在 `~/.dialhome-matrix/`（etc/logs/run/id/known_hosts），系统文件零改动 |
+| 部署位置 | 全部在 `~/.OutboundAll-matrix/`（etc/logs/run/id/known_hosts），系统文件零改动 |
 | 配置要点 | `Port 19443`（高位）、`ListenAddress 127.0.0.1`、用户目录 HostKey、`AuthorizedKeysFile` 指向用户目录、`PasswordAuthentication no`、`UsePAM no`、`AllowUsers user`、`Subsystem sftp internal-sftp`、独立 `PidFile` |
 | 启动 | `/usr/sbin/sshd -f <user-config> -E <user-log>` → **rc=0 一次成功**（无需 `UsePrivilegeSeparation` 调整；系统级 `/run/sshd` privsep 目录天然存在） |
 | 监听 | `ss -ltn`：**仅 127.0.0.1:19443** ✅ |
@@ -54,7 +54,7 @@
 ## 5. 对 Phase 2 设计的约束输入
 
 1. Go supervisor 以 `sshd -D` 子进程持有 sshd（崩溃检测、孤儿避免）；Linux 上 daemon 模式亦可存活（实测），但 `-D` 模型生命周期更确定
-2. Windows 无窗口：Go 产品二进制分两型——`dialhome.exe`（console，Controller/交互）与 `dialhomed.exe`（`-H windowsgui`，Node 后台/自启入口）；不经过任何 VBS/wscript 包装（SOP 的 wscript 法用于 PS 时代，Go 的 windowsgui 子系统是更干净的原生等价物）
+2. Windows 无窗口：Go 产品二进制分两型——`OutboundAll.exe`（console，Controller/交互）与 `OutboundAlld.exe`（`-H windowsgui`，Node 后台/自启入口）；不经过任何 VBS/wscript 包装（SOP 的 wscript 法用于 PS 时代，Go 的 windowsgui 子系统是更干净的原生等价物）
 3. ssh 会话连坐清理（job object）→ 一切要活过 ssh 会话的进程由「用户级自启动/计划任务」入口拉起，绝不从 ssh 命令树直接起（SOP 第七节，实测）
 4. 登录后网络未就绪 → 开机等待循环（最多 ~10 分钟探测 relay）保留进 Go supervisor
 5. Linux privsep 目录 `/run/sshd`：系统装过 sshd 的机器天然存在；**全新无 sshd 的 Linux** 需要验证（未测场景，记录为 Phase 5 待办：`sshd -d` 用户态在无 `/run/sshd` 时的真实行为，必要时文档要求一次性 `install -d /run/sshd` 或评估 `-o` 规避——以实测为准，不猜测）

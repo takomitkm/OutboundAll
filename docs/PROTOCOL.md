@@ -1,8 +1,8 @@
-# PROTOCOL — dialhome 登记与运行协议（Phase 2 冻结稿 v1）
+# PROTOCOL — OutboundAll 登记与运行协议（Phase 2 冻结稿 v1）
 
 ## 1. 登记协议（Node ⇄ Relay）
 
-前置：Controller 已在 Relay 上执行 `dialhome relay enroll <node-name>`：
+前置：Controller 已在 Relay 上执行 `OutboundAll relay enroll <node-name>`：
 
 ```
 relay 侧生成 Enrollment Credential（ec_kp + AK 行 restrict,command="<helper> enroll",no-port-forwarding,no-pty）
@@ -10,7 +10,7 @@ registry.json 记录: { node: <name>, ports: {ssh, app}, state: "pending", crede
 产出: credential 私钥(b64) + 节点安装参数( relay 地址/端口、node 名、管理公钥 )
 ```
 
-Node 侧（`dialhome node install --credential cred.json`）：
+Node 侧（`OutboundAll node install --credential cred.json`）：
 
 ```
 1. 本机生成 host key + tunnel key（ed25519，私钥不出机）
@@ -41,19 +41,19 @@ registry 公钥指纹 → 命中既有节点 → 返回原槽位（不新分配�
 **更正（2026-11-14 实测定案）**：authorized_keys 文件**不支持 Include 指令**（Include 属于
 sshd_config，不属于 authorized_keys）。因此 helper **直接维护系统的 `~/.ssh/authorized_keys`**：
 
-- 结构化解析：dialhome 行（`dialhome-node-<name>` / `dialhome-credential-<id>` 标记）
+- 结构化解析：OutboundAll 行（`OutboundAll-node-<name>` / `OutboundAll-credential-<id>` 标记）
   与外部行（人工 key、旧体系 `magpie-node-*` / `magpie-tunnel-node-*` 行）**逐字节保留**
-- 原子写（tmp+rename）+ 时间戳备份（`~/.dialhome/backups/`）+ flock 串行化
+- 原子写（tmp+rename）+ 时间戳备份（`~/.OutboundAll/backups/`）+ flock 串行化
 - 解析失败 → 中止并保留原文件（绝不整文件清空）
 
-行格式（dialhome 管理的行）：
+行格式（OutboundAll 管理的行）：
 ```
-restrict,command="<helper> tunnel --port <P>",port-forwarding,permitlisten="127.0.0.1:<P>",permitlisten="127.0.0.1:<P2>",permitopen="127.0.0.1:1" <type> <b64> dialhome-node-<name>
-restrict,command="<helper> enroll --credential <id>",no-port-forwarding,no-pty,no-user-rc <type> <b64> dialhome-credential-<id>
+restrict,command="<helper> tunnel --port <P>",port-forwarding,permitlisten="127.0.0.1:<P>",permitlisten="127.0.0.1:<P2>",permitopen="127.0.0.1:1" <type> <b64> OutboundAll-node-<name>
+restrict,command="<helper> enroll --credential <id>",no-port-forwarding,no-pty,no-user-rc <type> <b64> OutboundAll-credential-<id>
 ```
 凭证/端口标识烘焙进调用者自己的 AK 行（`--credential <id>` / `--port <P>`）——
 该行由 relay 自己写入，客户端无法冒认他人槽位。
-非 dialhome 行原样保留；解析器输出 `{kind, ports[], key_fp, comment, raw}`。
+非 OutboundAll 行原样保留；解析器输出 `{kind, ports[], key_fp, comment, raw}`。
 
 ## 4. 端口分配器
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takomitkm/dialhome/internal/crypto"
-	"github.com/takomitkm/dialhome/internal/relay"
+	"github.com/takomitkm/outboundall/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/relay"
 )
 
 func newTestStore(t *testing.T) *relay.Store {
@@ -22,7 +22,7 @@ func newTestStore(t *testing.T) *relay.Store {
 func TestMigrateLegacyIdempotentKeepsAKByteForByte(t *testing.T) {
 	dir := t.TempDir()
 	ak := filepath.Join(dir, "authorized_keys")
-	line := `restrict,command="/x/bin/dialhome relay-helper --port 13437 tunnel",port-forwarding,permitlisten="127.0.0.1:13437",permitlisten="127.0.0.1:13435",permitopen="127.0.0.1:1" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHiXedYmFKT4g79Lh4AUkRVOJ1GOiOMugfq01ybRzyaW dialhome-node-win2` + "\n# foreign line preserved\n"
+	line := `restrict,command="/x/bin/OutboundAll relay-helper --port 13437 tunnel",port-forwarding,permitlisten="127.0.0.1:13437",permitlisten="127.0.0.1:13435",permitopen="127.0.0.1:1" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHiXedYmFKT4g79Lh4AUkRVOJ1GOiOMugfq01ybRzyaW OutboundAll-node-win2` + "\n# foreign line preserved\n"
 	if err := os.WriteFile(ak, []byte(line), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestMigrateLegacyIdempotentKeepsAKByteForByte(t *testing.T) {
 	base := filepath.Join(dir, "relay")
 	os.MkdirAll(base, 0o700)
 	st := relay.NewStore(filepath.Join(base, "registry.json"), filepath.Join(base, "registry.lock"))
-	if err := relayMigrateLegacy(st, ak, "/x/bin/dialhome", base, filepath.Join(dir, "legacy")); err != nil {
+	if err := relayMigrateLegacy(st, ak, "/x/bin/OutboundAll", base, filepath.Join(dir, "legacy")); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := os.ReadFile(ak)
@@ -78,8 +78,8 @@ func TestPurgeRemovesRevokedTombstone(t *testing.T) {
 	kp1, _ := crypto.Generate("c1")
 	kp2, _ := crypto.Generate("c2")
 	akBody := "# foreign\n" +
-		relay.CredentialLine("/x/bin/dialhome", "cred-x", kp1.Public) + "\n" +
-		relay.CredentialLine("/x/bin/dialhome", "cred-keep", kp2.Public) + "\n"
+		relay.CredentialLine("/x/bin/OutboundAll", "cred-x", kp1.Public) + "\n" +
+		relay.CredentialLine("/x/bin/OutboundAll", "cred-keep", kp2.Public) + "\n"
 	if err := os.WriteFile(ak, []byte(akBody), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -106,10 +106,10 @@ func TestPurgeRemovesRevokedTombstone(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(ak)
 	text := string(raw)
-	if strings.Contains(text, "dialhome-credential-cred-x") {
+	if strings.Contains(text, "OutboundAll-credential-cred-x") {
 		t.Fatal("purged credential AK line still trusts sshd")
 	}
-	if !strings.Contains(text, "dialhome-credential-cred-keep") || !strings.Contains(text, "# foreign") {
+	if !strings.Contains(text, "OutboundAll-credential-cred-keep") || !strings.Contains(text, "# foreign") {
 		t.Fatal("unrelated AK lines must be preserved")
 	}
 }
@@ -123,10 +123,10 @@ func TestRevokeRetiresUnusedCredentials(t *testing.T) {
 	kpB, _ := crypto.Generate("b")
 	kpC, _ := crypto.Generate("c")
 	kpN, _ := crypto.Generate("n")
-	akBody := relay.CredentialLine("/x/bin/dialhome", "cred-a", kpA.Public) + "\n" +
-		relay.CredentialLine("/x/bin/dialhome", "cred-b", kpB.Public) + "\n" +
-		relay.CredentialLine("/x/bin/dialhome", "cred-c", kpC.Public) + "\n" +
-		relay.NodeLine("/x/bin/dialhome", relay.Ports{SSH: 13441, App: 13440}, kpN.Public, "victim") + "\n"
+	akBody := relay.CredentialLine("/x/bin/OutboundAll", "cred-a", kpA.Public) + "\n" +
+		relay.CredentialLine("/x/bin/OutboundAll", "cred-b", kpB.Public) + "\n" +
+		relay.CredentialLine("/x/bin/OutboundAll", "cred-c", kpC.Public) + "\n" +
+		relay.NodeLine("/x/bin/OutboundAll", relay.Ports{SSH: 13441, App: 13440}, kpN.Public, "victim") + "\n"
 	if err := os.WriteFile(ak, []byte(akBody), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -155,12 +155,12 @@ func TestRevokeRetiresUnusedCredentials(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(ak)
 	text := string(raw)
-	for _, banned := range []string{"dialhome-node-victim", "dialhome-credential-cred-a", "dialhome-credential-cred-b"} {
+	for _, banned := range []string{"OutboundAll-node-victim", "OutboundAll-credential-cred-a", "OutboundAll-credential-cred-b"} {
 		if strings.Contains(text, banned) {
 			t.Fatalf("revoke left %s in authorized_keys", banned)
 		}
 	}
-	if !strings.Contains(text, "dialhome-credential-cred-c") {
+	if !strings.Contains(text, "OutboundAll-credential-cred-c") {
 		t.Fatal("unrelated credential AK line must survive revoke")
 	}
 }

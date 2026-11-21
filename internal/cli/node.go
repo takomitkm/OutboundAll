@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/config"
-	"github.com/takomitkm/dialhome/internal/crypto"
-	"github.com/takomitkm/dialhome/internal/errs"
-	"github.com/takomitkm/dialhome/internal/identity"
-	"github.com/takomitkm/dialhome/internal/openssh"
-	"github.com/takomitkm/dialhome/internal/platform"
-	"github.com/takomitkm/dialhome/internal/supervisor"
+	"github.com/takomitkm/outboundall/internal/config"
+	"github.com/takomitkm/outboundall/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/errs"
+	"github.com/takomitkm/outboundall/internal/identity"
+	"github.com/takomitkm/outboundall/internal/openssh"
+	"github.com/takomitkm/outboundall/internal/platform"
+	"github.com/takomitkm/outboundall/internal/supervisor"
 )
 
 // nodePaths resolves the node data layout (docs/CONFIG_SCHEMA.md §1).
@@ -159,7 +159,7 @@ func nodeInstall(np nodePaths, args []string) error {
 	if raw, err := os.ReadFile(tunnelKey); err == nil && len(raw) > 0 {
 		tunnelPubLine = pubOf(tunnelKey, sshExe)
 	} else {
-		kp, kerr := crypto.Generate("dialhome-node-" + nodeName)
+		kp, kerr := crypto.Generate("OutboundAll-node-" + nodeName)
 		if kerr != nil {
 			return kerr
 		}
@@ -249,7 +249,7 @@ func nodeInstall(np nodePaths, args []string) error {
 		fmt.Println("AUTOSTART  = registered (user scope)")
 	} else {
 		fmt.Println("AUTOSTART  = none (temporary)")
-		fmt.Println("RUN        = dialhome node run   (foreground; Ctrl+C tears everything down)")
+		fmt.Println("RUN        = OutboundAll node run   (foreground; Ctrl+C tears everything down)")
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestGenerateShape(t *testing.T) {
-	kp, err := Generate("dialhome-node-test")
+	kp, err := Generate("OutboundAll-node-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func TestGenerateShape(t *testing.T) {
 	if !strings.HasPrefix(kp.Public.Line(), "ssh-ed25519 ") {
 		t.Fatal("public line must start with ssh-ed25519")
 	}
-	if !strings.HasSuffix(kp.Public.Line(), " dialhome-node-test") {
+	if !strings.HasSuffix(kp.Public.Line(), " OutboundAll-node-test") {
 		t.Fatalf("comment lost: %q", kp.Public.Line())
 	}
 	if kp.Seed[0] == kp.Seed[1] && kp.Seed[1] == kp.Seed[2] {

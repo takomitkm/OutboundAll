@@ -19,15 +19,15 @@ const RegistryVersion = 1
 // ErrNoAnchor marks a machine whose every anchor failed.
 var ErrNoAnchor = errors.New("controller: no reachable anchor for node")
 
-// Anchor is one way to reach a node: an existing ssh config alias, or dialhome's
+// Anchor is one way to reach a node: an existing ssh config alias, or OutboundAll's
 // own via-relay path. The Controller never forces the user to migrate ~/.ssh/config.
 type Anchor struct {
 	Alias      string `json:"alias,omitempty"`       // ~/.ssh/config Host alias
-	Node       string `json:"node,omitempty"`        // dialhome node name (kind=dialhome)
-	RelayAddr  string `json:"via_relay,omitempty"`   // host:port (kind=dialhome)
-	RelayPort  int    `json:"relay_port,omitempty"`  // relay ssh port (kind=dialhome)
-	RelayUser  string `json:"relay_user,omitempty"`  // relay ssh user (kind=dialhome)
-	RemotePort int    `json:"remote_port,omitempty"` // node sshd port on the relay loopback (kind=dialhome)
+	Node       string `json:"node,omitempty"`        // OutboundAll node name (kind=OutboundAll)
+	RelayAddr  string `json:"via_relay,omitempty"`   // host:port (kind=OutboundAll)
+	RelayPort  int    `json:"relay_port,omitempty"`  // relay ssh port (kind=OutboundAll)
+	RelayUser  string `json:"relay_user,omitempty"`  // relay ssh user (kind=OutboundAll)
+	RemotePort int    `json:"remote_port,omitempty"` // node sshd port on the relay loopback (kind=OutboundAll)
 	LocalPort  int    `json:"local_port,omitempty"`  // optional pre-built -L anchor
 	Note       string `json:"note,omitempty"`
 }
@@ -146,7 +146,7 @@ func ProbeAnchorSSH(sshBinary string, sshArgs []string, timeout time.Duration) (
 	if err != nil {
 		return false, firstLine(errString(err, out))
 	}
-	if !containsLine(string(out), "dialhome-probe-ok") {
+	if !containsLine(string(out), "OutboundAll-probe-ok") {
 		return false, "probe command produced no marker"
 	}
 	return true, "ssh ok"
@@ -168,7 +168,7 @@ func buildProbeArgs(sshBinary string, sshArgs []string, timeout time.Duration) [
 	args = append(args,
 		"-o", "BatchMode=yes",
 		"-o", fmt.Sprintf("ConnectTimeout=%d", int(timeout.Seconds())),
-		dest, "echo", "dialhome-probe-ok")
+		dest, "echo", "OutboundAll-probe-ok")
 	return args
 }
 

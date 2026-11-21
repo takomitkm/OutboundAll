@@ -1,7 +1,7 @@
 # Node 运维手册（受控机侧）
 
 > 适用对象：需要在「无管理员、NAT 后、无公网 IP」的机器上安装并维持一条回连隧道的运维/用户。
-> 本手册只讲 **Node** 侧（`dialhome node ...`）。Controller 侧见 [CONTROLLER_MANUAL.md](./CONTROLLER_MANUAL.md)；
+> 本手册只讲 **Node** 侧（`OutboundAll node ...`）。Controller 侧见 [CONTROLLER_MANUAL.md](./CONTROLLER_MANUAL.md)；
 > 安全与身份模型见 [SECURITY_MODEL.md](./SECURITY_MODEL.md)；配置字段见 [CONFIG_SCHEMA.md](./CONFIG_SCHEMA.md)；
 > 架构与进程模型见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 > 凡命令、字段均取自 `internal/cli/node.go`、`internal/config/config.go`、`internal/supervisor/*`，以代码为准。
@@ -35,9 +35,9 @@ Node 是被远程管控的那台机器。安装后它会：
 - Windows：需要能联网（首次 install 会下载/校验固定版本的 `OpenSSH-Win64.zip`，可用 `--openssh-zip` 离线指定本地包）。
 - Linux/macOS：使用系统自带 `ssh`/`sshd`（路径回退 `/usr/bin/ssh`、`/usr/sbin/sshd` 等）。
 - 数据目录（用户级，无需提权）：
-  - Windows：`%LOCALAPPDATA%\dialhome\`
-  - Linux：`~/.local/share/dialhome/`
-  - macOS：`~/Library/Application Support/dialhome/`
+  - Windows：`%LOCALAPPDATA%\OutboundAll\`
+  - Linux：`~/.local/share/OutboundAll/`
+  - macOS：`~/Library/Application Support/OutboundAll/`
 
 ---
 
@@ -47,19 +47,19 @@ Node 是被远程管控的那台机器。安装后它会：
 
 ```powershell
 # Windows PowerShell（temporary 模式，前台跑，Ctrl+C 即断）
-.\dialhome.exe node install --mode temporary --credential .\cred.json --name hp66
+.\OutboundAll.exe node install --mode temporary --credential .\cred.json --name hp66
 
 # Windows（persistent 模式，登录后自启）
-.\dialhome.exe node install --mode persistent --credential .\cred.json --name hp66
+.\OutboundAll.exe node install --mode persistent --credential .\cred.json --name hp66
 
 # Linux / macOS bash
-./dialhome node install --mode persistent --credential ./cred.json --name hp66
+./OutboundAll node install --mode persistent --credential ./cred.json --name hp66
 ```
 
 完整签名（`internal/cli/node.go`）：
 
 ```
-dialhome node install [--mode temporary|persistent] [--credential FILE]
+OutboundAll node install [--mode temporary|persistent] [--credential FILE]
                       [--relay USER@HOST:PORT] [--name NAME] [--openssh-zip FILE]
 ```
 
@@ -81,7 +81,7 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 6. 写 `config.json`（通道端口取自凭证 `ports_ssh/ports_app`）、写 `identity.json`（硬件指纹）。
 7. 按模式收尾：
    - `persistent` → 注册**用户级**自启动（§6），install 进程退出；
-   - `temporary` → 不注册自启，提示用 `dialhome node run` 前台运行。
+   - `temporary` → 不注册自启，提示用 `OutboundAll node run` 前台运行。
 
 安装输出示例（`ENROLL`、`CONFIG`、`SSH-EXE`、`TUNNEL-PUB`、`AUTOSTART` 等行），可用于确认每一步成功。
 
@@ -126,10 +126,10 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 
 ```powershell
 # temporary 模式前台跑（Ctrl+C / 关窗即全链拆除）
-.\dialhome.exe node run
+.\OutboundAll.exe node run
 ```
 
-`persistent` 模式由自启动在登录后拉起；你也可以手动 `dialhome node run`（前台）。该命令会：
+`persistent` 模式由自启动在登录后拉起；你也可以手动 `OutboundAll node run`（前台）。该命令会：
 - 抢占**实例锁**（`state/supervisor.lock`）——已有 supervisor 在跑则报错退出；
 - 起本机 `sshd -D` 子进程（Windows 无窗口）；
 - 按 `config.json` 每通道起独立 `ssh -R` 隧道，由 supervisor 守护。
@@ -137,7 +137,7 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 ### 5.2 状态
 
 ```powershell
-.\dialhome.exe node status
+.\OutboundAll.exe node status
 ```
 
 逐通道打印 `CHANNEL  name  local -> remote  [state]`，状态为 `LISTENING on relay`（探测到 Relay 回环口在听）或 `tunnel down`。
@@ -145,7 +145,7 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 ### 5.3 停止
 
 ```powershell
-.\dialhome.exe node stop
+.\OutboundAll.exe node stop
 ```
 
 杀掉本机 `sshd` 进程（依据 `state/sshd.pid`）；隧道 supervisor 在下一轮 tick 退出。**不会**移除自启或删除数据。
@@ -153,7 +153,7 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 ### 5.4 卸载
 
 ```powershell
-.\dialhome.exe node uninstall
+.\OutboundAll.exe node uninstall
 ```
 
 只移除**自启动入口**，**保留数据目录**（`config.json`、`keys/` 等仍在）。要彻底清除密钥，手动删除数据目录即可。
@@ -161,9 +161,9 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 ### 5.5 日志
 
 ```powershell
-.\dialhome.exe node logs            # 默认 node 日志（末尾 40 行）
-.\dialhome.exe node logs sshd       # 本机 sshd 输出 → logs/sshd.log
-.\dialhome.exe node logs tunnel-ssh # ssh 通道子进程错误 → logs/tunnel-ssh.log
+.\OutboundAll.exe node logs            # 默认 node 日志（末尾 40 行）
+.\OutboundAll.exe node logs sshd       # 本机 sshd 输出 → logs/sshd.log
+.\OutboundAll.exe node logs tunnel-ssh # ssh 通道子进程错误 → logs/tunnel-ssh.log
 ```
 
 读取 `logs/<channel>.log` 的末尾 40 行。可用通道：`sshd`、`tunnel-ssh`、`tunnel-application`（启用时）。
@@ -171,7 +171,7 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 ### 5.6 只读诊断
 
 ```powershell
-.\dialhome.exe doctor
+.\OutboundAll.exe doctor
 ```
 
 只读打印平台、数据目录、config、identity、tunnel key、manager key、自启动状态。**不改任何状态**，适合排障时先跑一次。
@@ -182,16 +182,16 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 
 | 平台 | 机制 | 备注 |
 |---|---|---|
-| Windows | **HKCU Run** 项 `dialhome-node`（指向 `dialhome.exe node run`） | 用户级、无管理员 |
-| Linux | `systemd --user` 单元；若无 user bus（无桌面的 ssh 会话）→ 回退 **XDG autostart** `~/.config/autostart/dialhome-node.desktop` | 用户级、无管理员 |
-| macOS | `~/Library/LaunchAgents/dialhome-node.plist` | **本轮回环未真机验证（无 macOS 设备）** |
+| Windows | **HKCU Run** 项 `OutboundAll-node`（指向 `OutboundAll.exe node run`） | 用户级、无管理员 |
+| Linux | `systemd --user` 单元；若无 user bus（无桌面的 ssh 会话）→ 回退 **XDG autostart** `~/.config/autostart/OutboundAll-node.desktop` | 用户级、无管理员 |
+| macOS | `~/Library/LaunchAgents/OutboundAll-node.plist` | **本轮回环未真机验证（无 macOS 设备）** |
 
 手动管理：
 
 ```powershell
-.\dialhome.exe autostart install    # 注册用户级自启
-.\dialhome.exe autostart status     # 查看当前自启入口
-.\dialhome.exe autostart uninstall  # 移除
+.\OutboundAll.exe autostart install    # 注册用户级自启
+.\OutboundAll.exe autostart status     # 查看当前自启入口
+.\OutboundAll.exe autostart uninstall  # 移除
 ```
 
 > **已知限制（重要）**：用户级自启只在**登录会话之后**才活。重启机器但**未登录**不会自动起；要「开机即用」需显式安装系统服务（见 §7）。
@@ -202,14 +202,14 @@ dialhome node install [--mode temporary|persistent] [--credential FILE]
 
 ```powershell
 # 仅 Linux systemd；需 root
-sudo dialhome service install --scope system
-sudo dialhome service status --scope system
-sudo dialhome service uninstall --scope system
+sudo OutboundAll service install --scope system
+sudo OutboundAll service status --scope system
+sudo OutboundAll service uninstall --scope system
 ```
 
 - 这是**可选、需提权、永不默认**的。install 默认只做 §6 的用户级自启。
 - 非 Linux（Windows/macOS）调用会明确报错拒绝，不会偷偷提权。
-- 卸载只删 systemd 单元；Linux 下若退回 XDG autostart 文件，需手动删 `~/.config/autostart/dialhome-node.desktop`。
+- 卸载只删 systemd 单元；Linux 下若退回 XDG autostart 文件，需手动删 `~/.config/autostart/OutboundAll-node.desktop`。
 
 ---
 

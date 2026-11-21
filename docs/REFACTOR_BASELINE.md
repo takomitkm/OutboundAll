@@ -1,8 +1,8 @@
-# REFACTOR_BASELINE — dialhome 旧实现全量审计（Phase 0）
+# REFACTOR_BASELINE — OutboundAll 旧实现全量审计（Phase 0）
 
 > 分支：`go-refactor` · 基线 commit：`46b3468`（main）· 审计日期：2026-11-14
 > 本文档是 Go 重构的事实正本：每一个要保留的行为、每一条安全约束、每一条实测证据。
-> 规格正本：用户《dialhome 全面重构执行规格：Go / Cross-platform》（本页不复制其内容，只记录事实）。
+> 规格正本：用户《OutboundAll 全面重构执行规格：Go / Cross-platform》（本页不复制其内容，只记录事实）。
 
 ---
 
@@ -10,22 +10,22 @@
 
 | 文件 | 角色 | 状态/证据 |
 |---|---|---|
-| `README.md` | 总览、快速上手、安全模型、存活表 | 含 man 页链接（docs/man-dialhome.md） |
+| `README.md` | 总览、快速上手、安全模型、存活表 | 含 man 页链接（docs/man-OutboundAll.md） |
 | `client/dial.py` | Controller 拨号器（Python）：MACHINES 注册表、多锚点 failover、`status`/`dial <name>`、stdin 管道跑命令 | 校机 school-guest 经 PC2 revjump；本机 tkinter/127.0.0.1 旁路 |
-| `client/onboard.cmd.TEMPLATE` | USB 离线接入（**SSH 版**）：内嵌登记私钥 b64 + 硬件指纹（UUID→MAC→注册表 id 三级回退） | 生成 `Desktop\dialhome-onboard.cmd`（ASCII） |
+| `client/onboard.cmd.TEMPLATE` | USB 离线接入（**SSH 版**）：内嵌登记私钥 b64 + 硬件指纹（UUID→MAC→注册表 id 三级回退） | 生成 `Desktop\OutboundAll-onboard.cmd`（ASCII） |
 | `relay/enroll.sh` | 登记核心：名字净化→幂等复用/分配端口对→生成 node key→写受限 AK 行→**发射安装器（stdout）** | `set -eu`；标记 `magpie-node-<name>$`；端口池 13440–13600 |
-| `relay/enroll-gate.sh` | SSH 强制命令网关：`enroll <name> [fp] [mode] [mag] [glm] [quiet]` / `get sshserver` / `get openssh`；fp 决定槽位（FP-REUSE/FP-NEW），stdout 只载安装器 | 私钥 `~/.ssh/dialhome_enroll` |
+| `relay/enroll-gate.sh` | SSH 强制命令网关：`enroll <name> [fp] [mode] [mag] [glm] [quiet]` / `get sshserver` / `get openssh`；fp 决定槽位（FP-REUSE/FP-NEW），stdout 只载安装器 | 私钥 `~/.ssh/OutboundAll_enroll` |
 | `relay/make-enroll-key.sh` | 幂等生成登记密钥对 + AK 行 `restrict,command=gate,no-port-forwarding,no-pty`；发射 magic paste（含硬件指纹逻辑） | |
-| `relay/bootstrap-server.py` | **开放开户口**（机主拍板无 token）：`/i[?mode=ps|tmp&magpie=1&glm=1&quiet=1]`；URL 即 CLI；错误响应=合法 PowerShell（注释+黄字提示）；每 IP 6 次/分；按来源 IP 分配名字（bootstrap-names.json） | systemd 单元 `dialhome-bootstrap.service`（曾退役后按用户拍板复活为无 token 开放模式） |
+| `relay/bootstrap-server.py` | **开放开户口**（机主拍板无 token）：`/i[?mode=ps|tmp&magpie=1&glm=1&quiet=1]`；URL 即 CLI；错误响应=合法 PowerShell（注释+黄字提示）；每 IP 6 次/分；按来源 IP 分配名字（bootstrap-names.json） | systemd 单元 `OutboundAll-bootstrap.service`（曾退役后按用户拍板复活为无 token 开放模式） |
 | `relay/magpie-tunnel-check.sh` | 节点 key 强制命令：`check <port>` 探活（JSON 一行）+ `GET:win-sshd/GET:migrate` 白名单文件 + `register {json}`（uuid/macs/user，只能写自己记录，flock+machines.json） | 部署于 `~/.local/bin/magpie-tunnel-check`（**authorized_keys 指向这里**，坑 B-新） |
-| `relay/reconcile-machines.sh` + `dialhome-reconcile.{service,timer}` | 30 分钟对账：经加密 SSH 进每个在线节点读实时 UUID/MAC，重算 fp 与登记 fp 比对 → MATCH/DRIFT/OFFLINE；**同 UUID 重复槽位自动合并**（保最老，revoke 其余） | machines-report.log |
+| `relay/reconcile-machines.sh` + `OutboundAll-reconcile.{service,timer}` | 30 分钟对账：经加密 SSH 进每个在线节点读实时 UUID/MAC，重算 fp 与登记 fp 比对 → MATCH/DRIFT/OFFLINE；**同 UUID 重复槽位自动合并**（保最老，revoke 其余） | machines-report.log |
 | `relay/revoke-node.sh` | 撤销：AK 行删除（`magpie-node-<n>$` 与 `magpie-tunnel-node-<port>$` 双标记）+ AK 备份 + 节点目录 shred + machines.json 条目清理 | |
 | `relay/stage-relay.sh` / `verify-tunnel.sh` / `add-win-provider.sh` | 固定 OpenSSH zip（sha256 `23f50f34…`）/ 隧道验证 / win 提供商 | |
 | `node/sshserver.ps1` | Node 核心（PS 5.1 兼容，PSSA 0/0）：便携 sshd（GitHub→gate 回退，sha 校验）、host key、AK、sshd_config、`-InstallMode ps|tmp`（tmp=只进数据目录+前台隧道+无自启无备份）、D:\ 根三脚本+C: 备份+单启动项+HKCU Run、互斥体守护（退避 5→10→20→40→60，≥5 次→60s，≥10 次→3600s；**开机等待**最多 10 分钟探 relay）、`register` 上报（uuid/macs/user）、`sshd -V` 走 cmd 层合并 stderr | HP66 生产实测（2026-11-13） |
 | `node/setup-magpie.ps1` | magpie 侧：-Acquire（exe 经 gate + MagpieServe 计划任务）/ -Plugin（zcode 插件装在分离计划任务，Bun 下载不被 SSH 会话杀死）/ -Login（OAuth 提示）/ -Status | UTF-8 BOM（PSSA 修复） |
 | `node/connector.ps1` | 旧方案（保留兼容） | 含脱敏函数与假值自测（历史扫描 4 处命中均为误报） |
 | `tools/pack-node.ps1` | 旧工作站打包（被 enroll 取代） | |
-| `docs/` | PITFALLS(28 条)/PORTS/STATUS/PRIOR-ART/RUNBOOK/FAST-PATH/man-dialhome/调研 | |
+| `docs/` | PITFALLS(28 条)/PORTS/STATUS/PRIOR-ART/RUNBOOK/FAST-PATH/man-OutboundAll/调研 | |
 | `.gitignore` | `nodes/ secrets/ *.b64 *.zip *.log *.err .tmp/` | |
 
 ## 2. 接入路径（三条，全部实测）
@@ -58,13 +58,13 @@ restrict,command="<checker> <ssh_port>",port-forwarding,permitlisten="127.0.0.1:
 - 每通道独立 ssh 连接（一条失败不杀另一条）
 - 重试梯：5→10→20→40→60s；**≥5 次失败→60s；≥10 次→3600s**；成功清零；`ServerAliveInterval=15 CountMax=3`；`ConnectTimeout=10`；`ExitOnForwardFailure=yes`
 - **开机等待**：重启后先探 relay 最多 20×30s（约 10 分钟）再进梯（另一会话增强，已采纳）
-- 互斥体 `Local\dialhome-tunnel` 单实例（connect.ps1 竞态实测修复）
+- 互斥体 `Local\OutboundAll-tunnel` 单实例（connect.ps1 竞态实测修复）
 - 状态文件 `tunnel-<name>.err`（connected/exited/retry 行）
 
 ### 3.4 临时 vs 持久（-InstallMode）
 | | ps（持久） | tmp（暂时） |
 |---|---|---|
-| D:\ 根三脚本 + C:\Users\<u>\dialhome 备份 | ✅ | ❌（一切只进数据目录） |
+| D:\ 根三脚本 + C:\Users\<u>\OutboundAll 备份 | ✅ | ❌（一切只进数据目录） |
 | 自启动（Startup lnk + HKCU Run，指向 C: 备份） | ✅ | ❌（实测：备份目录/lnk 均不存在） |
 | 守护 | 后台（connect.ps1 拉起，单启动项） | **前台**（Ctrl+C/关窗即断） |
 | sshd 启动 | connect.ps1 | 直接 Start-Process（端口占用则跳过） |
@@ -116,8 +116,8 @@ restrict,command="<checker> <ssh_port>",port-forwarding,permitlisten="127.0.0.1:
 | `bootstrap-names.json` | 同上 | `{ip: name}`（IP 名 → fp 身份桥接） |
 | authorized_keys | relay `~/.ssh/` | 受限行（双标记 `magpie-node-<n>$` / `magpie-tunnel-node-<port>$`）+ gate 行 + 注释 |
 | 节点数据目录 | node `D:\zc\sshd` 或 `%USERPROFILE%\sshserver` | host key、node_key、sshd_config、AK（102 登录公钥）、known_hosts、tunnel-*.err |
-| 自启动 | Startup lnk（`dialhome-connect.lnk` + 旧版两个）+ HKCU Run `dialhome-connect` | 指向 C: 备份 |
-| C: 备份 | `%USERPROFILE%\dialhome\` | dialhome-{sshd,tunnel,connect}.ps1 |
+| 自启动 | Startup lnk（`OutboundAll-connect.lnk` + 旧版两个）+ HKCU Run `OutboundAll-connect` | 指向 C: 备份 |
+| C: 备份 | `%USERPROFILE%\OutboundAll\` | OutboundAll-{sshd,tunnel,connect}.ps1 |
 | Controller 侧 | `client/dial.py` MACHINES + `~/.ssh/config` 别名（school-guest 等） | 多锚点 |
 
 ## 7. 实测环境与既有证据指针

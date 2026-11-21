@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takomitkm/dialhome/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/crypto"
 )
 
 func foreignAK() string {
@@ -17,7 +17,7 @@ func foreignAK() string {
 }
 
 func TestParseRecognizesKinds(t *testing.T) {
-	helper := "C:/dialhome/dialhome.exe"
+	helper := "C:/OutboundAll/OutboundAll.exe"
 	pub, _ := crypto.Generate("whatever")
 	nodeLine := NodeLine(helper, Ports{App: 13440, SSH: 13441}, pub.Public, "hp66")
 	credKP, _ := crypto.Generate("whatever")
@@ -73,10 +73,10 @@ func TestUpsertReplacesOnlyTarget(t *testing.T) {
 		t.Fatal("alpha line should be replaced, not appended")
 	}
 	out := Render(entries)
-	if strings.Count(out, "dialhome-node-alpha") != 1 {
+	if strings.Count(out, "OutboundAll-node-alpha") != 1 {
 		t.Fatalf("alpha must appear exactly once:\n%s", out)
 	}
-	if !strings.Contains(out, "dialhome-node-beta") {
+	if !strings.Contains(out, "OutboundAll-node-beta") {
 		t.Fatal("beta line must be untouched")
 	}
 	if !strings.Contains(out, "foreign@host") {
@@ -94,10 +94,10 @@ func TestRemoveNodeOnlyTarget(t *testing.T) {
 		t.Fatal("alpha should be removed")
 	}
 	out := Render(entries)
-	if strings.Contains(out, "dialhome-node-alpha") || strings.Contains(out, "13440") {
+	if strings.Contains(out, "OutboundAll-node-alpha") || strings.Contains(out, "13440") {
 		t.Fatalf("alpha ports must disappear:\n%s", out)
 	}
-	if !strings.Contains(out, "dialhome-node-beta") {
+	if !strings.Contains(out, "OutboundAll-node-beta") {
 		t.Fatal("beta must survive")
 	}
 	if _, removed := RemoveNode(entries, "alpha"); removed {
@@ -114,7 +114,7 @@ func TestNodeLineSecurityBoundary(t *testing.T) {
 		`permitlisten="127.0.0.1:13441"`,
 		`permitlisten="127.0.0.1:13440"`,
 		`permitopen="127.0.0.1:1"`,
-		"dialhome-node-hp66",
+		"OutboundAll-node-hp66",
 	} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("line missing %q: %s", want, line)
@@ -128,15 +128,15 @@ func TestNodeLineSecurityBoundary(t *testing.T) {
 }
 
 // TestShellQuote locks POSIX shell escaping for the helper executable path.
-// Without it a path like "/home/user/my tools/dialhome" is split into two words
+// Without it a path like "/home/user/my tools/OutboundAll" is split into two words
 // by the login shell running the forced command (review finding P2).
 func TestShellQuote(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"/usr/bin/dialhome", "'/usr/bin/dialhome'"},
-		{"/home/user/my tools/dialhome", "'/home/user/my tools/dialhome'"},
-		{"/opt/it's/dialhome", `'/opt/it'\''s/dialhome'`},
-		{"/x/$(id)/dialhome", "'/x/$(id)/dialhome'"},
-		{`/x/back\slash/dialhome`, `'/x/back\slash/dialhome'`},
+		{"/usr/bin/OutboundAll", "'/usr/bin/OutboundAll'"},
+		{"/home/user/my tools/OutboundAll", "'/home/user/my tools/OutboundAll'"},
+		{"/opt/it's/OutboundAll", `'/opt/it'\''s/OutboundAll'`},
+		{"/x/$(id)/OutboundAll", "'/x/$(id)/OutboundAll'"},
+		{`/x/back\slash/OutboundAll`, `'/x/back\slash/OutboundAll'`},
 		{"", "''"},
 	}
 	for _, c := range cases {
@@ -152,9 +152,9 @@ func TestShellQuote(t *testing.T) {
 func TestForcedCommandQuoting(t *testing.T) {
 	pub, _ := crypto.Generate("q")
 	for _, path := range []string{
-		"/home/user/my tools/dialhome",
-		`/opt/it's "quoted" \& weird/dialhome`,
-		"/x/$(id)`whoami`;rm/dialhome",
+		"/home/user/my tools/OutboundAll",
+		`/opt/it's "quoted" \& weird/OutboundAll`,
+		"/x/$(id)`whoami`;rm/OutboundAll",
 	} {
 		line := NodeLine(path, Ports{App: 13440, SSH: 13441}, pub.Public, "hp66")
 		// the AK option value must be double-quoted and close before ,port-forwarding
@@ -185,7 +185,7 @@ func TestForcedCommandQuoting(t *testing.T) {
 			t.Fatalf("quoted line failed to parse for path %q: %+v", path, entries)
 		}
 	}
-	credPath := `/opt/it's "q"/dialhome`
+	credPath := `/opt/it's "q"/OutboundAll`
 	cred := CredentialLine(credPath, "cred-1", pub.Public)
 	wantCred := AKOptionValue(ShellQuote(credPath) + " relay-helper --credential cred-1 enroll")
 	if !strings.Contains(cred, "command="+wantCred+",no-port-forwarding") {

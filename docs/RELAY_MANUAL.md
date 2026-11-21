@@ -12,13 +12,13 @@
 
 ## 0. 两条必须记牢的事实
 
-1. **Relay 数据目录恒定是 `~/.dialhome`。**
+1. **Relay 数据目录恒定是 `~/.OutboundAll`。**
    `relay` / `relay-helper` 子命令运行时**固定读这里**；它不继承 shell 的
-   `DIALHOME_DATA_DIR`（helper 在 sshd 子进程里跑，环境与你登录 shell 不同，
+   `OUTBOUNDALL_DATA_DIR`（helper 在 sshd 子进程里跑，环境与你登录 shell 不同，
    一个不匹配会让签发出来的凭证被当成 "unknown credential"）。
    只有 `--base`（relay-helper 上）和极少量测试逃逸口会覆盖它——**正常运维不要碰**。
-   内部结构：`~/.dialhome/registry.json`（节点与凭证状态）、
-   `~/.dialhome/registry.lock`（写串行化锁）、`~/.dialhome/backups/`（init 时创建）。
+   内部结构：`~/.OutboundAll/registry.json`（节点与凭证状态）、
+   `~/.OutboundAll/registry.lock`（写串行化锁）、`~/.OutboundAll/backups/`（init 时创建）。
 
 2. **macOS 平台全部行为 UNVERIFIED。** 本轮无 macOS 真机验证；下列命令在 Linux/Windows
    上实测，macOS 上若出问题请先在真机补验，不要直接上生产。
@@ -59,8 +59,8 @@
 ## 2. 一次性布置
 
 ### 2.1 前置
-- 一个普通用户账号（不要 root 部署二进制，否则 `~/.dialhome` 属主会错；若误用 root，
-  记得 `chown -R user:user ~/.dialhome`）。
+- 一个普通用户账号（不要 root 部署二进制，否则 `~/.OutboundAll` 属主会错；若误用 root，
+  记得 `chown -R user:user ~/.OutboundAll`）。
 - 该用户的 `~/.ssh/authorized_keys` **必须存在**（哪怕是空文件）。`relay init` 会检查它，
   缺失则报错 `system authorized_keys missing at ... (create it first)`。
 - relay sshd 已能让你用**管理公钥**（controller / 你的登录 key）登录——本工具不改系统 ssh 配置。
@@ -68,21 +68,21 @@
 ### 2.2 初始化
 ```bash
 # 跨网络部署（默认公网口）
-dialhome relay init
+OutboundAll relay init
 
 # 同机部署（relay 与节点同在 102 本机）
-dialhome relay init --advertise HOST:PORT [--relay-user USER] 127.0.0.1:22
+OutboundAll relay init --advertise HOST:PORT [--relay-user USER] 127.0.0.1:22
 ```
 `relay init` 做的事：
-1. 创建 `~/.dialhome`（0700）与 `~/.dialhome/backups/`。
-2. 把 registry 的 `helper_path` 写成**当前 dialhome 二进制绝对路径**
+1. 创建 `~/.OutboundAll`（0700）与 `~/.OutboundAll/backups/`。
+2. 把 registry 的 `helper_path` 写成**当前 OutboundAll 二进制绝对路径**
    （这个路径会被烤进每一条 authorized_keys 行，所以挪动二进制后旧行会失效——见 §6.5）。
 3. 若给了 `--advertise <HOST:PORT>`，写入 `registry.advertise`；否则留空，
    签发凭证时回落到默认公网地址（§1）。
 
 初始化成功后终端会打印：
 ```
-relay init ok: /home/user/.dialhome
+relay init ok: /home/user/.OutboundAll
 managing system authorized_keys: /home/user/.ssh/authorized_keys
 ```
 
@@ -95,22 +95,22 @@ managing system authorized_keys: /home/user/.ssh/authorized_keys
 ### 3.1 签发
 ```bash
 # 标准：签发名为 <name> 的节点凭证，并把 controller 管理公钥烤进去
-dialhome relay credentials issue <name> --manager-pub /path/to/manager.pub
+OutboundAll relay credentials issue <name> --manager-pub /path/to/manager.pub
 
-# 别名（不含 manager-pub；会从 ~/.dialhome/manager.pub 读，没有则留空）
-dialhome relay enroll <name>
+# 别名（不含 manager-pub；会从 ~/.OutboundAll/manager.pub 读，没有则留空）
+OutboundAll relay enroll <name>
 ```
-- `<name>`：节点名（会写进 `dialhome-node-<name>` 标记）。生产现有节点形如
+- `<name>`：节点名（会写进 `OutboundAll-node-<name>` 标记）。生产现有节点形如
   `n-10-110-23-66-2b12`、`port-13435`（后者来自旧 `magpie-tunnel-node-13435`）。
 - `--manager-pub FILE`：controller 管理公钥行（ssh-ed25519 …）。不传时尝试读
-  `~/.dialhome/manager.pub`；仍然没有则凭证里 `manager_pubkey` 为空。
+  `~/.OutboundAll/manager.pub`；仍然没有则凭证里 `manager_pubkey` 为空。
 - **幂等**：同名节点复用原端口对，不重新分配；新凭证覆盖旧 `credential_id`，
   若节点之前是空态/已撤销则置为 `pending`。
 
 签发后终端输出两样东西：
 ```
 CREDENTIAL-B64 = <base64(JSON)>
-feed it to: dialhome node install --credential <that b64 or file>
+feed it to: OutboundAll node install --credential <that b64 or file>
 ```
 
 ### 3.2 凭证 JSON 里烤了什么
@@ -136,7 +136,7 @@ feed it to: dialhome node install --credential <that b64 or file>
 ### 3.3 节点侧消费（一句话）
 节点操作者拿到 `CREDENTIAL-B64` 后跑：
 ```bash
-dialhome node install --credential <文件或 @b64>
+OutboundAll node install --credential <文件或 @b64>
 ```
 节点本地生成自己的 tunnel key（私钥不出机），用凭证私钥去 relay `enroll` 提交公钥，
 helper 校验凭证有效+未过期+未使用 → 把节点公钥写入 authorized_keys 受限行、
@@ -144,9 +144,9 @@ registry 该节点 `state: pending→active`、凭证报废（一次性）。详
 
 ### 3.4 撤销一张未用的凭证
 ```bash
-dialhome relay credentials revoke <cred-id>
+OutboundAll relay credentials revoke <cred-id>
 ```
-只删该凭证的 registry 记录与 authorized_keys 里的 `dialhome-credential-<id>` 行；
+只删该凭证的 registry 记录与 authorized_keys 里的 `OutboundAll-credential-<id>` 行；
 不影响已登记节点。
 
 ---
@@ -155,13 +155,13 @@ dialhome relay credentials revoke <cred-id>
 
 | 命令 | 作用 | 关键行为 |
 |---|---|---|
-| `dialhome relay list` | 列出所有节点 | 列 `NODE / STATE / APP / SSH / TUNNEL-FP / HW` |
-| `dialhome relay inspect <name>` | 看单节点完整记录 | 打印该节点 `NodeRecord` 的 JSON（含 state/ports/hardware/时间戳） |
-| `dialhome relay ports` | 列出当前占用端口 | 输出所有 active/pending 节点的 ssh+app 端口（已排序） |
-| `dialhome relay revoke <name>` | 撤销节点（软删） | 置 `state=revoked` 留**墓碑**（审计用），删 AK 行；端口标记为释放 |
-| `dialhome relay purge <name>` | 彻底删除墓碑 | **仅接受 `revoked` 态**；删 registry 记录 + 关联凭证；拒绝 active/pending |
-| `dialhome relay credentials issue/revoke` | 凭证签发/撤销 | 见 §3 |
-| `dialhome relay migrate-legacy [LEGACY-DIR]` | 旧版导入 | 见 [`MIGRATION_GUIDE.md`](./MIGRATION_GUIDE.md) |
+| `OutboundAll relay list` | 列出所有节点 | 列 `NODE / STATE / APP / SSH / TUNNEL-FP / HW` |
+| `OutboundAll relay inspect <name>` | 看单节点完整记录 | 打印该节点 `NodeRecord` 的 JSON（含 state/ports/hardware/时间戳） |
+| `OutboundAll relay ports` | 列出当前占用端口 | 输出所有 active/pending 节点的 ssh+app 端口（已排序） |
+| `OutboundAll relay revoke <name>` | 撤销节点（软删） | 置 `state=revoked` 留**墓碑**（审计用），删 AK 行；端口标记为释放 |
+| `OutboundAll relay purge <name>` | 彻底删除墓碑 | **仅接受 `revoked` 态**；删 registry 记录 + 关联凭证；拒绝 active/pending |
+| `OutboundAll relay credentials issue/revoke` | 凭证签发/撤销 | 见 §3 |
+| `OutboundAll relay migrate-legacy [LEGACY-DIR]` | 旧版导入 | 见 [`MIGRATION_GUIDE.md`](./MIGRATION_GUIDE.md) |
 
 ### 4.1 revoke vs purge（别搞混）
 - **`revoke` = 让节点立刻失能但保留记录**：AK 行被删（旧 key 重连 → Permission denied，N10），
@@ -190,12 +190,12 @@ authorized_keys 是安全核心。**本工具直接维护系统的 `~/.ssh/autho
 ### 5.1 两行模板（字面量，`127.0.0.1` 不可替换成 localhost/0.0.0.0）
 ```
 # 节点隧道行（节点 key 的 forced command）
-restrict,command="<helper> relay-helper --port <SSH_PORT> tunnel",port-forwarding,permitlisten="127.0.0.1:<SSH_PORT>",permitlisten="127.0.0.1:<APP_PORT>",permitopen="127.0.0.1:1" ssh-ed25519 <b64> dialhome-node-<name>
+restrict,command="<helper> relay-helper --port <SSH_PORT> tunnel",port-forwarding,permitlisten="127.0.0.1:<SSH_PORT>",permitlisten="127.0.0.1:<APP_PORT>",permitopen="127.0.0.1:1" ssh-ed25519 <b64> OutboundAll-node-<name>
 
 # 登记凭证行（一次性凭证的 forced command）
-restrict,command="<helper> relay-helper --credential <id> enroll",no-port-forwarding,no-pty,no-user-rc <b64> dialhome-credential-<id>
+restrict,command="<helper> relay-helper --credential <id> enroll",no-port-forwarding,no-pty,no-user-rc <b64> OutboundAll-credential-<id>
 ```
-- `<helper>` = registry 里烤进去的 dialhome 二进制绝对路径。
+- `<helper>` = registry 里烤进去的 OutboundAll 二进制绝对路径。
 - **端口标识烘焙进调用者自己的行**：`--port <SSH_PORT>` / `--credential <id>`。
   该行由 relay 自己写，客户端无法冒认他人槽位。
 - 节点行能力上限：仅 `-R 127.0.0.1:<自己两个口>`；无 shell、无文件读、无 `-L`
@@ -211,20 +211,20 @@ Go 的 `flag` 包遇到第一个位置参数就停止解析；写成 `tunnel --p
 
 ### 5.3 结构化解析：外来行逐字节保留
 解析器把每行分成 `node` / `credential` / `other` 三类：
-- `dialhome-node-<name>`、`dialhome-credential-<id>` 标记的行被识别；
+- `OutboundAll-node-<name>`、`OutboundAll-credential-<id>` 标记的行被识别；
 - 其它一切（人工 key、注释、旧 `magpie-*` 行）**原样保留**，渲染无损；
 - 只改目标节点的那一行；单节点撤销绝不碰其它行；
 - 解析失败 → **中止并保留原文件**，绝不整文件清空。
 
 ### 5.4 写规程（原子 + 备份 + 锁）
 每次写 authorized_keys：
-1. 全程持 `~/.dialhome/registry.lock`（unix `flock` / Windows `LockFileEx`）串行化所有写者；
+1. 全程持 `~/.OutboundAll/registry.lock`（unix `flock` / Windows `LockFileEx`）串行化所有写者；
 2. 读原文件 → 结构化解析 → 改目标行 → **原子写**（同目录 tmp + rename）→ 保留
    `~/.ssh/authorized_keys.bak-<时间戳>` 备份；
 3. 文件权限硬化为 `0600` 等价。
 
 ### 5.5 节点名规则
-节点名用于 `dialhome-node-<name>` 标记，且要能被正则稳定匹配（迁移时
+节点名用于 `OutboundAll-node-<name>` 标记，且要能被正则稳定匹配（迁移时
 `magpie-node-([a-z0-9-]+)$` 这类规则依赖它只含小写字母/数字/连字符）。
 生产节点名如 `n-10-110-23-66-2b12`、`port-13435` 都符合；起名请保持 `[a-z0-9-]`。
 
@@ -235,7 +235,7 @@ Go 的 `flag` 包遇到第一个位置参数就停止解析；写成 `tunnel --p
 ### 6.1 备份在哪
 - 每次 authorized_keys 写操作前，原文件被复制为 `~/.ssh/authorized_keys.bak-<YYYYMMDD-HHMMSS>`
   （与 authorized_keys 同目录，带时间戳）。
-- registry 自身也是同目录 tmp+rename 原子写；`~/.dialhome/backups/` 由 init 创建。
+- registry 自身也是同目录 tmp+rename 原子写；`~/.OutboundAll/backups/` 由 init 创建。
 
 ### 6.2 回滚 authorized_keys
 如果一次改写搞错了：
@@ -246,12 +246,12 @@ ls -1 ~/.ssh/authorized_keys.bak-*
 cp ~/.ssh/authorized_keys.bak-20261115-120000 ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
-因为外来行是逐字节保留的，回滚只影响 dialhome 自己写的行，不会动你的其它 key。
+因为外来行是逐字节保留的，回滚只影响 OutboundAll 自己写的行，不会动你的其它 key。
 
 ### 6.3 registry 回滚
 registry 没有内建的时间戳备份；重大操作前**手动 cp 一份** `registry.json`：
 ```bash
-cp ~/.dialhome/registry.json ~/.dialhome/registry.json.bak-$(date +%Y%m%d-%H%M%S)
+cp ~/.OutboundAll/registry.json ~/.OutboundAll/registry.json.bak-$(date +%Y%m%d-%H%M%S)
 ```
 `revoke` 用墓碑保留了记录，多数情况不需要回滚 registry——直接 `purge` 清理即可。
 
@@ -263,10 +263,10 @@ cp ~/.dialhome/registry.json ~/.dialhome/registry.json.bak-$(date +%Y%m%d-%H%M%S
 先 `touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys` 再 init。
 
 ### 7.2 凭证 enrol 报 "unknown credential"
-最常见原因：**relay 数据目录不一致**。relay/relay-helper 固定读 `~/.dialhome`，
-不继承你 shell 的 `DIALHOME_DATA_DIR`。排查：
-- 签发凭证和节点 enrol 是不是用的同一份 `~/.dialhome/registry.json`？
-- 有没有在 `~/.dialhome` 之外（比如用 `--base` 或 `DIALHOME_RELAY_DIR`）跑过命令？
+最常见原因：**relay 数据目录不一致**。relay/relay-helper 固定读 `~/.OutboundAll`，
+不继承你 shell 的 `OUTBOUNDALL_DATA_DIR`。排查：
+- 签发凭证和节点 enrol 是不是用的同一份 `~/.OutboundAll/registry.json`？
+- 有没有在 `~/.OutboundAll` 之外（比如用 `--base` 或 `OUTBOUNDALL_RELAY_DIR`）跑过命令？
   正常运维别用这些覆盖；它们只用于测试。
 
 ### 7.3 节点 key 连不上 / 旧 key 还能用吗
@@ -293,7 +293,7 @@ cp ~/.dialhome/registry.json ~/.dialhome/registry.json.bak-$(date +%Y%m%d-%H%M%S
   否则会被持续惩罚、雪上加霜。
 
 ### 7.6 helper 路径失效
-`init` 时把当时 dialhome 二进制的绝对路径烤进了 AK 行。若你**移动或重命名了二进制**，
+`init` 时把当时 OutboundAll 二进制的绝对路径烤进了 AK 行。若你**移动或重命名了二进制**，
 旧 AK 行里的 `<helper>` 路径就指不到文件，节点 enrol/tunnel 会失败。
 修法：重跑签发/迁移让 AK 行刷新，或确保二进制路径不变。
 
@@ -325,11 +325,11 @@ cp ~/.dialhome/registry.json ~/.dialhome/registry.json.bak-$(date +%Y%m%d-%H%M%S
 ## 9. 相关命令速查（来自 usage）
 
 ```
-dialhome relay init [--advertise HOST:PORT] | list | inspect <name> | revoke <name> | purge <name> | ports
-dialhome relay credentials issue <name> [--manager-pub FILE] | revoke <id>
-dialhome relay migrate-legacy [LEGACY-DIR]
-dialhome relay-helper --port <p> tunnel | --credential <id> enroll   (内部强制命令)
-dialhome migrate --from-legacy [--legacy-dir DIR]
+OutboundAll relay init [--advertise HOST:PORT] | list | inspect <name> | revoke <name> | purge <name> | ports
+OutboundAll relay credentials issue <name> [--manager-pub FILE] | revoke <id>
+OutboundAll relay migrate-legacy [LEGACY-DIR]
+OutboundAll relay-helper --port <p> tunnel | --credential <id> enroll   (内部强制命令)
+OutboundAll migrate --from-legacy [--legacy-dir DIR]
 ```
 
 需要把旧版机器迁过来？看 [`MIGRATION_GUIDE.md`](./MIGRATION_GUIDE.md)。
@@ -340,5 +340,5 @@ dialhome migrate --from-legacy [--legacy-dir DIR]
 - **Forced command 路径转义**：helper 路径分别做 POSIX shell 单引号引用与 authorized_keys 选项值转义（`ShellQuote` / `AKOptionValue`），支持带空格、引号、`$()`、反引号的路径；CR/LF/NUL 直接拒绝。
 - **端口分配**：`livePorts` 现识别 `0.0.0.0:` / `[::]:` / `*:` 等所有通配与 IPv6 监听，不再误分配已占用端口。
 - **purge**：`relay purge <name>` 删除凭证记录时同步删除其 AK 行，避免 sshd 里留下失效公钥。
-- **部署参数**：新增 `relay init --relay-user USER`（写入 registry 的 `advertise_user`）；凭证里的 `relay_user` 按 配置 → `$USER` → `$USERNAME` → `user` 回退，不再写死。测试可用 `DIALHOME_RELAY_DIR` / `DIALHOME_RELAY_AK` 把 relay 数据目录与 AK 重定向到沙箱。
+- **部署参数**：新增 `relay init --relay-user USER`（写入 registry 的 `advertise_user`）；凭证里的 `relay_user` 按 配置 → `$USER` → `$USERNAME` → `user` 回退，不再写死。测试可用 `OUTBOUNDALL_RELAY_DIR` / `OUTBOUNDALL_RELAY_AK` 把 relay 数据目录与 AK 重定向到沙箱。
 - **构建可复现**：CI 的 `setup-go` 与 `go.mod` 统一为 Go 1.27，并设 `GOTOOLCHAIN: local`。

@@ -1,7 +1,7 @@
 package relay
 
 import (
-	"github.com/takomitkm/dialhome/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/crypto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -126,10 +126,10 @@ func TestEnrollHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "dialhome-node-hp66") {
+	if !strings.Contains(text, "OutboundAll-node-hp66") {
 		t.Fatal("node AK line missing")
 	}
-	if strings.Contains(text, "dialhome-credential-cred-1") {
+	if strings.Contains(text, "OutboundAll-credential-cred-1") {
 		t.Fatal("credential AK line must retire after use")
 	}
 	if !strings.Contains(text, "# someone else's key") {

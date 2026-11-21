@@ -10,11 +10,11 @@ import (
 )
 
 // autostart.go -- user-level autostart (spec §6.1: never admin, never a wrapper).
-// Windows: HKCU Run entry pointing at dialhome.exe itself (single mechanism, no lnk
+// Windows: HKCU Run entry pointing at OutboundAll.exe itself (single mechanism, no lnk
 // duplication). Linux: systemd --user unit (XDG autostart fallback later).
 // macOS: ~/Library/LaunchAgents plist.
 
-const runKeyName = "dialhome-node"
+const runKeyName = "OutboundAll-node"
 
 func selfExe() (string, error) {
 	return os.Executable()
@@ -40,7 +40,7 @@ func autostartRemove() {
 	case "windows":
 		_ = winRunKeyDelete(runKeyName)
 	case "darwin":
-		_ = os.Remove(filepath.Join(launchAgentsDir(), "dialhome-node.plist"))
+		_ = os.Remove(filepath.Join(launchAgentsDir(), "OutboundAll-node.plist"))
 	default:
 		_ = os.Remove(userUnitPath())
 	}
@@ -79,7 +79,7 @@ func winRunKeyGet(name string) (bool, string, error) {
 // on Windows/macOS we refuse with a clear message rather than silently trying
 // to elevate (the whole design is admin-less by default).
 
-const systemUnitPath = "/etc/systemd/system/dialhome-node.service"
+const systemUnitPath = "/etc/systemd/system/OutboundAll-node.service"
 
 func systemServiceInstall() error {
 	exe, err := selfExe()
@@ -89,7 +89,7 @@ func systemServiceInstall() error {
 	switch runtime.GOOS {
 	case "linux":
 		unit := `[Unit]
-Description=dialhome node supervisor (system scope, optional)
+Description=OutboundAll node supervisor (system scope, optional)
 After=network-online.target
 
 [Service]
@@ -109,20 +109,20 @@ WantedBy=multi-user.target
 		if err := execSilent("systemctl", "daemon-reload"); err != nil {
 			return err
 		}
-		if err := execSilent("systemctl", "enable", "dialhome-node.service"); err != nil {
+		if err := execSilent("systemctl", "enable", "OutboundAll-node.service"); err != nil {
 			return err
 		}
 		fmt.Println("system service enabled (OPTIONAL; user-level autostart is the default)")
 		return nil
 	default:
-		return fmt.Errorf("system-scope service is a Linux systemd option only; on %s use 'dialhome autostart' (user scope, no admin)", runtime.GOOS)
+		return fmt.Errorf("system-scope service is a Linux systemd option only; on %s use 'OutboundAll autostart' (user scope, no admin)", runtime.GOOS)
 	}
 }
 
 func systemServiceUninstall() error {
 	switch runtime.GOOS {
 	case "linux":
-		_ = execSilent("systemctl", "disable", "dialhome-node.service")
+		_ = execSilent("systemctl", "disable", "OutboundAll-node.service")
 		if err := os.Remove(systemUnitPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("system service uninstall needs root: %w", err)
 		}
@@ -161,14 +161,14 @@ func darwinLaunchAgent(exe string, np nodePaths) error {
 	plist := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>dialhome-node</string>
+  <key>Label</key><string>OutboundAll-node</string>
   <key>ProgramArguments</key><array>
     <string>` + exe + `</string><string>node</string><string>run</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
 </dict></plist>`
-	return os.WriteFile(filepath.Join(launchAgentsDir(), "dialhome-node.plist"), []byte(plist), 0o644)
+	return os.WriteFile(filepath.Join(launchAgentsDir(), "OutboundAll-node.plist"), []byte(plist), 0o644)
 }
 
 // --- linux (systemd --user) ----------------------------------------------
@@ -179,7 +179,7 @@ func userUnitPath() string {
 	if base == "" {
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "systemd", "user", "dialhome-node.service")
+	return filepath.Join(base, "systemd", "user", "OutboundAll-node.service")
 }
 
 func linuxUserUnit(exe string, np nodePaths, nodeName string) error {
@@ -187,7 +187,7 @@ func linuxUserUnit(exe string, np nodePaths, nodeName string) error {
 		return err
 	}
 	unit := `[Unit]
-Description=dialhome node supervisor (` + nodeName + `)
+Description=OutboundAll node supervisor (` + nodeName + `)
 After=network-online.target
 
 [Service]
@@ -207,7 +207,7 @@ WantedBy=default.target
 		// which the desktop session launches at login (spec §6.1 alternative)
 		return writeXDGAutostart(exe)
 	}
-	if err := execSilent("systemctl", "--user", "enable", "dialhome-node.service"); err != nil {
+	if err := execSilent("systemctl", "--user", "enable", "OutboundAll-node.service"); err != nil {
 		return writeXDGAutostart(exe)
 	}
 	return nil
@@ -222,12 +222,12 @@ func writeXDGAutostart(exe string) error {
 	}
 	desktop := `[Desktop Entry]
 Type=Application
-Name=dialhome node
+Name=OutboundAll node
 Exec=` + exe + ` node run
 Hidden=false
 X-GNOME-Autostart-enabled=true
 `
-	if err := os.WriteFile(filepath.Join(dir, "dialhome-node.desktop"), []byte(desktop), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "OutboundAll-node.desktop"), []byte(desktop), 0o644); err != nil {
 		return err
 	}
 	fmt.Println("AUTOSTART = XDG autostart (no systemd user bus; desktop session will launch it)")

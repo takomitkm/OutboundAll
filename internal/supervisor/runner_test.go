@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/config"
+	"github.com/takomitkm/outboundall/internal/config"
 )
 
 func TestBuildArgsContract(t *testing.T) {

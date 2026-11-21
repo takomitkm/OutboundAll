@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/lockfile"
+	"github.com/takomitkm/outboundall/internal/lockfile"
 )
 
 const RegistryVersion = 1

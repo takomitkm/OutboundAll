@@ -1,4 +1,4 @@
-# SECURITY_MODEL — dialhome Go 重构安全模型（Phase 2 冻结稿 v1）
+# SECURITY_MODEL — OutboundAll Go 重构安全模型（Phase 2 冻结稿 v1）
 
 > 不变式来源：REFACTOR_BASELINE §4 + 规格 §2。任何实现 PR 触碰本文件所列不变式时，
 > 必须重跑 §6 的负向测试矩阵并附证据。
@@ -11,13 +11,13 @@
 - 公钥经 Enrollment Credential 提交 Relay，绑定该节点的端口槽位。
 - Relay 侧 AK 行（逐字模板，127.0.0.1 不可替换为 localhost 或 0.0.0.0）：
 ```
-restrict,command="<helper-path> --port <SSH_PORT>",port-forwarding,permitlisten="127.0.0.1:<SSH_PORT>",permitlisten="127.0.0.1:<APP_PORT>",permitopen="127.0.0.1:1" ssh-ed25519 <pub> dialhome-node-<name>
+restrict,command="<helper-path> --port <SSH_PORT>",port-forwarding,permitlisten="127.0.0.1:<SSH_PORT>",permitlisten="127.0.0.1:<APP_PORT>",permitopen="127.0.0.1:1" ssh-ed25519 <pub> OutboundAll-node-<name>
 ```
 能力上限：仅 `-R 127.0.0.1:<两个指定回环口>`；无 shell、无文件读、无 -L（permitopen=1）、
 不能占他人端口（permitlisten 精确匹配）。`-R` 参数由 Go 代码构造，**地址字面量硬编码**，不接受配置注入。
 
 ### B. Controller Management Key
-- 私钥只在 Controller（`~/.config/dialhome/keys/manager.key`）；公钥写入**每个 Node** 的
+- 私钥只在 Controller（`~/.config/OutboundAll/keys/manager.key`）；公钥写入**每个 Node** 的
   authorized_keys（Node 侧 sshd），可取该 Node 当前用户的 shell。
 - 绝不复制到 Node、绝不进入安装包、绝不进入任何 HTTP 响应体。
 - Controller 与 Relay 同机时（当前部署）管理私钥可存 Relay——该机即 Controller。
@@ -40,8 +40,8 @@ restrict,command="<helper-path> --port <SSH_PORT>",port-forwarding,permitlisten=
 ## 3. Relay 侧安全（AK 更新规程）
 
 写 authorized_keys 的唯一入口 = relay helper / relay 子命令，规程：
-1. flock（`~/.dialhome/ak.lock`）串行化全部写者。
-2. 读原文件 → 解析为结构化行（保留非 dialhome 行原样）→ 修改目标节点行 → **原子写**（tmp + rename 同目录）→ 保留 `.bak-<ts>`。
+1. flock（`~/.OutboundAll/ak.lock`）串行化全部写者。
+2. 读原文件 → 解析为结构化行（保留非 OutboundAll 行原样）→ 修改目标节点行 → **原子写**（tmp + rename 同目录）→ 保留 `.bak-<ts>`。
 3. 单节点撤销绝不触碰其他行；解析失败（意外格式）→ 中止并保留原文件，不整文件清空。
 4. 并发登记：端口分配与 AK 写在同一把锁内完成（分配器见 PROTOCOL §4）。
 5. 每次写后立即重读校验（行数/目标行存在性），失败回滚备份。
