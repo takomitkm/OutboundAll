@@ -1,4 +1,4 @@
-# TEST_PLAN — dialhome-hs 验收矩阵（终态映射）
+# TEST_PLAN — OutboundAll-hs 验收矩阵（终态映射）
 
 > 对应源规格 Phase 11。每条绑定实现证据（CI run / 测试名 / 真机记录）。
 > **执行场地 = GitHub Actions**（用户纪律）；真机 139.9.101.203 只做部署可用性与端到端冒烟。

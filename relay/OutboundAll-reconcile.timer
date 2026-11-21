@@ -1,5 +1,5 @@
 [Unit]
-Description=run dialhome machine reconcile every 30 minutes
+Description=run OutboundAll machine reconcile every 30 minutes
 
 [Timer]
 OnBootSec=2min

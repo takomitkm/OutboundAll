@@ -1,4 +1,4 @@
-# THREAT_MODEL — dialhome × Headscale + DERP + sing-box（v1 初稿，Phase 10 终稿）
+# THREAT_MODEL — OutboundAll × Headscale + DERP + sing-box（v1 初稿，Phase 10 终稿）
 
 > 状态：初稿（Phase 1）；Phase 10 按"威胁清单逐条落地状态"补全并冻结。
 > 方法：STRIDE-lite + 源规格 §13 威胁清单逐条覆盖；每条给：防线 / 现状（设计/实现/测试）/ 残余风险。

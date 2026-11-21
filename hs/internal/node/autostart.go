@@ -37,7 +37,7 @@ const WindowsRunKey = `Software\Microsoft\Windows\CurrentVersion\Run`
 // SystemdUnit renders the user-level systemd unit body.
 func SystemdUnit(hsNodeBin string, logDir string) string {
 	return fmt.Sprintf(`[Unit]
-Description=dialhome hs-node (tailscale userspace endpoint)
+Description=OutboundAll hs-node (tailscale userspace endpoint)
 After=network-online.target
 Wants=network-online.target
 
@@ -70,7 +70,7 @@ func DarwinPlist(hsNodeBin string, logDir string) string {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>net.dialhome.hs-node</string>
+  <key>Label</key><string>net.OutboundAll.hs-node</string>
   <key>ProgramArguments</key>
   <array>
     <string>%s</string>

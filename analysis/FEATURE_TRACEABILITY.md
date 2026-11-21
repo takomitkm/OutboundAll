@@ -26,14 +26,14 @@
 | F16 | 重试梯 / boot-wait / auth 重退避 | supervisor ladder（5→60s→3600s） | hs-node supervisor 监视 sing-box 进程 + 网络探针，参数复刻 | **新代码** | T-ladder-*（参数矩阵逐档断言） | ⬜ |
 | F17 | 实例锁 | supervisor.lock（LockFileEx/flock） | 同机制复用 `internal/lockfile` | **新代码**（复用现有包） | T-singleton | ⬜ |
 | F18 | 日志脱敏 | logging 包 REDACT 模式 | 复用 + 新增 preauth key / node key 模式 | **新代码**（复用现有包） | T-redact | ⬜ |
-| F19 | 运维 CLI（invite/node/shell/exec/status/doctor） | dialhome controller/relay 子命令 | `hs-admin`（调 hs-controller API + tailscale ssh） | **新代码** | T-cli-*（每命令一测） | ⬜ |
+| F19 | 运维 CLI（invite/node/shell/exec/status/doctor） | OutboundAll controller/relay 子命令 | `hs-admin`（调 hs-controller API + tailscale ssh） | **新代码** | T-cli-*（每命令一测） | ⬜ |
 | F20 | 管理面持久化 | registry.json + AK 文件 | hs-controller SQLite（nodes/invitations/audit） | **新代码** | T-store-*（事务/索引/不存明文密钥） | ⬜ |
 | F21 | DERP 中继回退 | （无对应物：relay 是唯一入口） | Headscale 内嵌 DERP；多 DERP = 配置产物 | **原生** | T-derp-failover（阻断 UDP→回退 DERP） | ⬜ |
 | F22 | 控制面故障恢复 | boot-wait + ladder（探 relay） | 同语义：控制面不可达→ladder；恢复自愈 | **新代码** | T-cp-down（headscale 停→节点保持/恢复） | ⬜ |
-| F23 | 迁移（旧版→新版） | migrate-legacy（AK 逐字节保留） | 旧 dialhome 节点 → 新栈：重新登记（身份体系不同，不能逐字节迁移——**与参考迁移语义本质不同**，ADR-002 说明） | **新代码**（并排期） | T-migration（并跑验收） | ⬜ |
+| F23 | 迁移（旧版→新版） | migrate-legacy（AK 逐字节保留） | 旧 OutboundAll 节点 → 新栈：重新登记（身份体系不同，不能逐字节迁移——**与参考迁移语义本质不同**，ADR-002 说明） | **新代码**（并排期） | T-migration（并跑验收） | ⬜ |
 | F24 | 备份/回滚 | AK .bak + registry 手动 cp | headscale db 备份 + hs-controller db 备份 + 恢复演练 | **新代码**（部署产物） | T-backup-restore | ⬜ |
 | F25 | 审计 | registry 墓碑 + AK 备份 | audit_events 表（邀请/兑换/撤销/授权变更） | **新代码** | T-audit | ⬜ |
-| F26 | doctor 只读诊断 | dialhome doctor | hs-admin doctor（平台/state/config/身份/自启/连通） | **新代码** | T-doctor | ⬜ |
+| F26 | doctor 只读诊断 | OutboundAll doctor | hs-admin doctor（平台/state/config/身份/自启/连通） | **新代码** | T-doctor | ⬜ |
 | F27 | 对外仅一端口 | relay sshd 一个端口 | VPS 443/TCP（控制面+DERP）+ 3478/UDP（STUN） | **部署形态** | T-ports（部署文档 + 防火墙清单） | ⬜ |
 | F28 | 开放开户口（bootstrap 18443，机主拍板） | HTTP /i 无 token | **不做**——新栈登记走邀请码；如需开放模式属机主决策，留 ADR 记录 | **偏差（设计决定）** | — | ⚠️ ADR-002 |
 

@@ -1,3 +1,3 @@
-module github.com/takomitkm/dialhome
+module github.com/takomitkm/outboundall
 
 go 1.27

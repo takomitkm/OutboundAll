@@ -113,7 +113,7 @@ func TestFailoverNoReachableAnchor(t *testing.T) {
 // must precede the remote command. Putting "-o ... echo" after "user@host" turned
 // the marker into a remote command and failed the probe with exit 255.
 func TestBuildProbeArgsOrder(t *testing.T) {
-	// dialhome anchor shape produced by cli.anchorArgs (co-located case):
+	// OutboundAll anchor shape produced by cli.anchorArgs (co-located case):
 	//   ["-i", key, "-o", "StrictHostKeyChecking=accept-new", "-o", "UserKnownHostsFile=/x", "-p", "13441", "user@127.0.0.1"]
 	sshArgs := []string{"-i", "/k", "-o", "StrictHostKeyChecking=accept-new", "-o", "UserKnownHostsFile=/x", "-p", "13441", "user@127.0.0.1"}
 	args := buildProbeArgs("ssh", sshArgs, 8*1e9)

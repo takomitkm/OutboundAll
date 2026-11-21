@@ -1,4 +1,4 @@
-// Package crypto generates and formats the ed25519 keys dialhome uses, in the
+// Package crypto generates and formats the ed25519 keys OutboundAll uses, in the
 // OpenSSH on-disk format ("openssh-key-v1" container), using only the standard library.
 //
 // Security contract (docs/SECURITY_MODEL.md):
@@ -362,7 +362,7 @@ func (r *binReader) str() ([]byte, error) {
 }
 
 // ParsePublicKeyLine parses an authorized_keys line ("ssh-ed25519 AAAA... comment...").
-// Only ssh-ed25519 is accepted: dialhome mints ed25519 keys exclusively.
+// Only ssh-ed25519 is accepted: OutboundAll mints ed25519 keys exclusively.
 func ParsePublicKeyLine(line string) (AuthorizedKey, error) {
 	fields := strings.Fields(line)
 	if len(fields) < 2 {

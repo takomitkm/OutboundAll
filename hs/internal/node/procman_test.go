@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/supervisor"
+	"github.com/takomitkm/outboundall/internal/supervisor"
 )
 
 // N-pm-1: the ladder contract is exact -- a naive implementation (e.g.

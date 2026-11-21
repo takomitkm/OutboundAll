@@ -63,7 +63,7 @@ func New(opts Options) (*slog.Logger, io.Closer, error) {
 	path := filepath.Join(opts.Dir, opts.Name+".log")
 	w := &rotator{path: path, max: opts.MaxBytes, keep: opts.Keep, mirror: opts.AlsoStderr}
 	level := slog.LevelInfo
-	if os.Getenv("DIALHOME_DEBUG") != "" {
+	if os.Getenv("OUTBOUNDALL_DEBUG") != "" {
 		level = slog.LevelDebug
 	}
 	h := slog.NewJSONHandler(w, &slog.HandlerOptions{

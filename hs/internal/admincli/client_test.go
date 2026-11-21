@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/takomitkm/dialhome/hs/internal/controller"
+	"github.com/takomitkm/outboundall/hs/internal/controller"
 )
 
 // newFixture stands up a real controller server (reuse the phase-3 fixture
@@ -90,17 +90,17 @@ func TestUnauthorizedMapped(t *testing.T) {
 // N-cli-3: token resolution order -- flag beats env beats file.
 func TestTokenFromSources(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DIALHOME_HS_ADMIN_TOKEN", "from-env")
+	t.Setenv("OUTBOUNDALL_HS_ADMIN_TOKEN", "from-env")
 	if got := TokenFromSources(""); got != "from-env" {
 		t.Fatalf("env not used: %q", got)
 	}
 	if got := TokenFromSources("from-flag"); got != "from-flag" {
 		t.Fatalf("flag must win: %q", got)
 	}
-	t.Setenv("DIALHOME_HS_ADMIN_TOKEN", "")
-	// the client looks for $HOME/.dialhome-hs/admin-token
-	os.MkdirAll(filepath.Join(dir, ".dialhome-hs"), 0o700)
-	os.WriteFile(filepath.Join(dir, ".dialhome-hs", "admin-token"), []byte("from-file\n"), 0o600)
+	t.Setenv("OUTBOUNDALL_HS_ADMIN_TOKEN", "")
+	// the client looks for $HOME/.OutboundAll-hs/admin-token
+	os.MkdirAll(filepath.Join(dir, ".OutboundAll-hs"), 0o700)
+	os.WriteFile(filepath.Join(dir, ".OutboundAll-hs", "admin-token"), []byte("from-file\n"), 0o600)
 	// point HOME at dir (linux) and USERPROFILE too (windows variant)
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)

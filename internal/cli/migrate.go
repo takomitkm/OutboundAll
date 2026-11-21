@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/takomitkm/dialhome/internal/relay"
+	"github.com/takomitkm/outboundall/internal/relay"
 )
 
 // relayMigrateLegacy imports the PS-era state into the new registry WITHOUT
@@ -19,7 +19,7 @@ import (
 //   - legacy AK lines: magpie-tunnel-node-<port>  /  magpie-node-<name>
 //
 // Transformation: for each legacy line, keep key + ports EXACTLY, rewrite only the
-// forced command to the new helper path, and re-mark the comment dialhome-node-<name>.
+// forced command to the new helper path, and re-mark the comment OutboundAll-node-<name>.
 // A backup of the system AK is taken before any write.
 func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldAK string) error {
 	legacyAK := akPath // the same file: legacy lines live in the system AK
@@ -61,7 +61,7 @@ func relayMigrateLegacy(store *relay.Store, akPath, helperBin, base string, oldA
 		out := make([]relay.Entry, 0, len(entries))
 		for _, e := range entries {
 			keep := e.Raw
-			// Idempotent re-import: an ALREADY-migrated line (dialhome-node-* marker)
+			// Idempotent re-import: an ALREADY-migrated line (OutboundAll-node-* marker)
 			// is left byte-for-byte intact; only its registry record is rebuilt. This
 			// makes migrate-legacy safe to run twice, and lets operators recover a
 			// registry that was lost while the AK lines themselves survived

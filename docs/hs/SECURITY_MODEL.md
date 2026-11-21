@@ -1,4 +1,4 @@
-# SECURITY_MODEL — dialhome × Headscale + DERP + sing-box（v1，Phase 1 冻结稿）
+# SECURITY_MODEL — OutboundAll × Headscale + DERP + sing-box（v1，Phase 1 冻结稿）
 
 > 不变式来源：参考实现 `docs/SECURITY_MODEL.md`（三身份/负向矩阵）+ 源规格 §13。
 > 任何实现 PR 触碰本文所列不变式时，必须重跑 §4 负向矩阵并附 CI 证据。
@@ -16,7 +16,7 @@
 ## 2. 授权模型（deny-by-default，服务端强制）
 
 - Headscale policy（policy v2 / grants）**默认全拒**；显式列出：controller→各节点 SSH、（若 G1 允许）受限转发。
-- 逐节点 tag：`tag:dialhome-node-<name>`（或等价 per-node 映射）；授权 profile 决定该节点可被谁 SSH。
+- 逐节点 tag：`tag:OutboundAll-node-<name>`（或等价 per-node 映射）；授权 profile 决定该节点可被谁 SSH。
 - sing-box `ssh_server` 的 forwarding 默认关闭（`disable_forwarding: true`）——等价于参考实现"节点 key 无 -L/-R" 的默认姿态；开启条件见 ADR-005。
 - **授权边界由服务端裁决**（Headscale ACL 在数据面强制；SSH ACL 在连接时裁决）——客户端 UI/配置校验只是体验，不是安全边界。
 - 参考实现的"permitlisten 逐口精确"在新栈**无逐服务等价物**（G1 待证）——任何文档不得宣称等价（ADR-005）。

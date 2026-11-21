@@ -29,10 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takomitkm/dialhome/hs/internal/node"
-	"github.com/takomitkm/dialhome/internal/errs"
-	"github.com/takomitkm/dialhome/internal/lockfile"
-	"github.com/takomitkm/dialhome/internal/logging"
+	"github.com/takomitkm/outboundall/hs/internal/node"
+	"github.com/takomitkm/outboundall/internal/errs"
+	"github.com/takomitkm/outboundall/internal/lockfile"
+	"github.com/takomitkm/outboundall/internal/logging"
 )
 
 var version = "dev"

@@ -5,7 +5,7 @@
 //   - deny-by-default: the rendered policy's grants section is EMPTY unless a
 //     node's profile explicitly allows something (headscale treats omitted
 //     grants as allow-all -- the explicit empty array is the deny baseline)
-//   - SSH: only nodes tagged tag:dialhome-node-ssh (profile opt-in) are
+//   - SSH: only nodes tagged tag:OutboundAll-node-ssh (profile opt-in) are
 //     reachable by the controller tag; everything else has no covering rule
 //   - node-to-node: no rule, no reachability
 package authz
@@ -17,11 +17,11 @@ import (
 	"strings"
 )
 
-// Tags used by the dialhome stack (ADR-003).
+// Tags used by the OutboundAll stack (ADR-003).
 const (
-	TagController = "tag:dialhome-controller"
-	TagNode       = "tag:dialhome-node"
-	TagNodeSSH    = "tag:dialhome-node-ssh"
+	TagController = "tag:OutboundAll-controller"
+	TagNode       = "tag:OutboundAll-node"
+	TagNodeSSH    = "tag:OutboundAll-node-ssh"
 )
 
 // NodeView is what the renderer needs per node (from the controller store).
@@ -32,7 +32,7 @@ type NodeView struct {
 }
 
 // Render produces the headscale policy JSON (huJSON, trailing comments ok).
-// owner names the headscale user allowed to manage the dialhome tags
+// owner names the headscale user allowed to manage the OutboundAll tags
 // (policy v2 rejects tags without owners -- CI-proven). deny-by-default is
 // structural: no node without the SSH tag gets any rule.
 func Render(nodes []NodeView, owner string) string {
@@ -50,7 +50,7 @@ func Render(nodes []NodeView, owner string) string {
 	var b strings.Builder
 	b.WriteString("{\n")
 	// tag ownership: headscale rejects policies that reference undeclared
-	// tags, so every dialhome tag is declared with exactly one owner.
+	// tags, so every OutboundAll tag is declared with exactly one owner.
 	// headscale policy v2 Username syntax REQUIRES a trailing "@" when the
 	// login name does not naturally contain one (types.go isUser = Contains
 	// "@"; resolveUser trims the suffix before matching the user name).

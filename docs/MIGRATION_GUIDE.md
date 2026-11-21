@@ -13,14 +13,14 @@
 
 | 维度 | 旧版（magpie 系列） | 新版（Go relay） |
 |---|---|---|
-| 节点 AK 行标记 | `magpie-node-<name>` / `magpie-tunnel-node-<port>` | `dialhome-node-<name>` |
+| 节点 AK 行标记 | `magpie-node-<name>` / `magpie-tunnel-node-<port>` | `OutboundAll-node-<name>` |
 | 强制命令 | 指向 `magpie-tunnel-check` 等脚本 | `relay-helper --port <P> tunnel` / `relay-helper --credential <id> enroll` |
-| 节点状态存放 | `~/.magpie-connector/machines.json` | `~/.dialhome/registry.json` |
+| 节点状态存放 | `~/.magpie-connector/machines.json` | `~/.OutboundAll/registry.json` |
 | 硬件事实（uuid/macs/user） | 散在 machines.json | `registry.json[nodes].hardware` |
 | 端口 | 13440–13600，legacy 行 `permitlisten` 顺序为 `(app, ssh)` | 同池；新行顺序 `(ssh, app)`（迁移**保留**旧顺序） |
 | authorized_keys 维护 | 手工/脚本维护 | helper 结构化解析 + 原子写 + 备份 + 锁（见 RELAY_MANUAL §5） |
 | 登记凭证 | 登记私钥内嵌安装器 | 节点本地生成 tunnel key，只上传公钥；一次性凭证 |
-| 数据目录 | `~/.magpie-connector` | **`~/.dialhome`**（固定，见 RELAY_MANUAL §0） |
+| 数据目录 | `~/.magpie-connector` | **`~/.OutboundAll`**（固定，见 RELAY_MANUAL §0） |
 
 **迁移只改一件事**：把旧 forced command 重写成新的 helper 调用。
 **key body 与端口逐字节不变**——所以正在跑的旧隧道连接不会被打断（规格 §10：
@@ -30,7 +30,7 @@
 
 ## 2. 迁移前置检查
 
-1. **先跑 `relay init`**（见 RELAY_MANUAL §2）把 `~/.dialhome` 与 registry 建好。
+1. **先跑 `relay init`**（见 RELAY_MANUAL §2）把 `~/.OutboundAll` 与 registry 建好。
    确认 `~/.ssh/authorized_keys` 已存在。
 2. **确认旧体系目录还在**：默认 `~/.magpie-connector/`，里面有
    - `machines.json`（旧硬件事实；可选，仅用来补 `hardware` 字段）
@@ -39,7 +39,7 @@
    ```bash
    cp ~/.ssh/authorized_keys ~/.ssh/authorized_keys.pre-migrate-$(date +%Y%m%d-%H%M%S)
    cp -r ~/.magpie-connector ~/.magpie-connector.pre-migrate-$(date +%Y%m%d-%H%M%S)
-   cp ~/.dialhome/registry.json ~/.dialhome/registry.json.pre-migrate-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+   cp ~/.OutboundAll/registry.json ~/.OutboundAll/registry.json.pre-migrate-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
    ```
 4. **确认生产隧道当前在线**（`ss -ltn | grep 127.0.0.1:134` 能看到旧节点端口在监听），
    这样迁移后能用「旧 key 仍可用」这条来验证零中断。
@@ -52,13 +52,13 @@
 ### 3.1 选一个入口（两者等价，走同一个导入器）
 ```bash
 # 入口 A：relay 子命令（LEGACY-DIR 指向含 machines.json 的旧目录）
-dialhome relay migrate-legacy ~/.magpie-connector
+OutboundAll relay migrate-legacy ~/.magpie-connector
 
 # 入口 B：顶层别名（要求 --from-legacy；--legacy-dir 默认 ~/.magpie-connector）
-dialhome migrate --from-legacy
-dialhome migrate --from-legacy --legacy-dir ~/.magpie-connector
+OutboundAll migrate --from-legacy
+OutboundAll migrate --from-legacy --legacy-dir ~/.magpie-connector
 ```
-> 设计上**只有一条迁移路径**：`dialhome migrate --from-legacy` 直接委托给
+> 设计上**只有一条迁移路径**：`OutboundAll migrate --from-legacy` 直接委托给
 > `relay migrate-legacy` 同一个幂等导入器，避免两份实现分叉。
 
 ### 3.2 发生了什么（逐步）
@@ -71,7 +71,7 @@ dialhome migrate --from-legacy --legacy-dir ~/.magpie-connector
    - **key body、permitlisten 端口原样保留**（旧版顺序是 app 在前、ssh 在后，迁移照旧保留，
      不强行改成新模板顺序）。
    - **只重写 forced command** 为 `relay-helper --port <ssh> tunnel`，注释从
-     `magpie-node-*` / `magpie-tunnel-node-*` 改成 `dialhome-node-<name>`。
+     `magpie-node-*` / `magpie-tunnel-node-*` 改成 `OutboundAll-node-<name>`。
    - 在 registry 建/补节点记录：`state=active`、`ports`、可选 `hardware`、`registered_at="migrated"`。
 4. **写 authorized_keys 前先备份**（`.bak-<ts>`）；只在实际改写了 forced command 的行时才落盘。
 
@@ -79,7 +79,7 @@ dialhome migrate --from-legacy --legacy-dir ~/.magpie-connector
 - 真正改写的行会打印 `MIGRATED <name> -> ports(<app>,<ssh>)`，
   并提示 `authorized_keys left byte-for-byte unchanged` 的反例不会出现——
   **只要有 legacy 行被改写，就会写盘并留备份**。
-- 若所有行**早已是新格式**（`dialhome-node-*`），导入器判定无需改写，
+- 若所有行**早已是新格式**（`OutboundAll-node-*`），导入器判定无需改写，
   打印 `all already migrated` 且 **authorized_keys 一字不改、不生成备份**（见 §6 幂等）。
 
 ### 3.4 零中断的关键
@@ -97,15 +97,15 @@ restrict,command="/old/magpie-tunnel-check 13437",port-forwarding,permitlisten="
 ```
 迁移后：
 ```
-restrict,command="/home/user/.dialhome/bin/dialhome relay-helper --port 13437 tunnel",port-forwarding,permitlisten="127.0.0.1:13435",permitlisten="127.0.0.1:13437",permitopen="127.0.0.1:1" ssh-ed25519 AAAA....b64 dialhome-node-port-13435
+restrict,command="/home/user/.OutboundAll/bin/OutboundAll relay-helper --port 13437 tunnel",port-forwarding,permitlisten="127.0.0.1:13435",permitlisten="127.0.0.1:13437",permitopen="127.0.0.1:1" ssh-ed25519 AAAA....b64 OutboundAll-node-port-13435
 ```
-- `<helper>` 路径 = `relay init` 时烤进 registry 的 dialhome 二进制绝对路径。
+- `<helper>` 路径 = `relay init` 时烤进 registry 的 OutboundAll 二进制绝对路径。
 - 节点名 `port-13435` 来自旧名 `magpie-tunnel-node-13435` 的端口段。
 - 两个 `permitlisten` 端口（13435/13437）**原样保留**，顺序是旧版 `(app, ssh)` 而非新模板 `(ssh, app)`——
   导入器刻意保留原顺序，保证旧隧道监听不被扰动。
 
 旧 `magpie-node-<name>` 行同理，只是 name 直接沿用（例如 `magpie-node-n-10-110-23-66-2b12`
-→ `dialhome-node-n-10-110-23-66-2b12`），端口顺序仍是旧约定。
+→ `OutboundAll-node-n-10-110-23-66-2b12`），端口顺序仍是旧约定。
 
 ### 3.6 `<LEGACY-DIR>` 解析规则
 两个入口对旧目录的处理一致：`<LEGACY-DIR>`（或 `--legacy-dir`）指向**含 `machines.json` 的目录**
@@ -119,12 +119,12 @@ restrict,command="/home/user/.dialhome/bin/dialhome relay-helper --port 13437 tu
 
 | # | 检查项 | 命令 / 方法 | 通过标准 |
 |---|---|---|---|
-| V1 | registry 节点数正确 | `dialhome relay list` | 出现 `n-10-110-23-66-2b12`(13440/13441)、`port-13435`(13437/13435)，state 都是 `active` |
-| V2 | 凭证为空 | `dialhome relay inspect <name>` 看 credentials | `credentials: {}`（迁移节点不经过一次性凭证） |
+| V1 | registry 节点数正确 | `OutboundAll relay list` | 出现 `n-10-110-23-66-2b12`(13440/13441)、`port-13435`(13437/13435)，state 都是 `active` |
+| V2 | 凭证为空 | `OutboundAll relay inspect <name>` 看 credentials | `credentials: {}`（迁移节点不经过一次性凭证） |
 | V3 | **AK 字节不变** | `sha256sum ~/.ssh/authorized_keys` | 与「只改 forced command 的预期」一致；key body 与端口段的 sha 子串**逐字节保留**（KEYS-IDENTICAL vs 备份） |
 | V4 | **旧 key 仍可用** | 用旧节点私钥跑一次 tunnel/check | 旧私钥仍能建立隧道、仍能被新 helper 识别（生产已验证 win2/port-13435） |
-| V5 | 旧端口仍在监听 | `ss -ltn` / `dialhome relay ports` | 迁移前在听的 `127.0.0.1:13435` 等端口**没掉** |
-| V6 | 外来行无损 | `diff ~/.ssh/authorized_keys.pre-migrate-* ~/.ssh/authorized_keys` | 非 dialhome 行逐字节一致 |
+| V5 | 旧端口仍在监听 | `ss -ltn` / `OutboundAll relay ports` | 迁移前在听的 `127.0.0.1:13435` 等端口**没掉** |
+| V6 | 外来行无损 | `diff ~/.ssh/authorized_keys.pre-migrate-* ~/.ssh/authorized_keys` | 非 OutboundAll 行逐字节一致 |
 | V7 | 备份存在 | `ls ~/.ssh/authorized_keys.bak-*` | 至少一份时间戳备份（若本次有改写） |
 
 > V3/V4 是「零中断」的铁证：key 没换、旧私钥还能用，说明运行中的隧道没受影响。
@@ -167,7 +167,7 @@ cp ~/.ssh/authorized_keys.pre-migrate-<ts> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
 # 2) registry 还原（迁移前若已存在旧 registry）
-cp ~/.dialhome/registry.json.pre-migrate-<ts> ~/.dialhome/registry.json
+cp ~/.OutboundAll/registry.json.pre-migrate-<ts> ~/.OutboundAll/registry.json
 ```
 因为 AK 行的 key body 与端口没动，回滚后旧体系脚本/旧 helper 行为完全回到迁移前状态，
 不影响任何在线隧道。若你还没动旧 magpie 体系本身（很多部署选择「双版本并存验证」），
@@ -179,7 +179,7 @@ cp ~/.dialhome/registry.json.pre-migrate-<ts> ~/.dialhome/registry.json
 
 迁移导入器是**幂等的**，可以安全地重复执行：
 
-- 对已迁移的行（`dialhome-node-*` 标记）：解析器识别为 `node` 且 `Name` 非空，
+- 对已迁移的行（`OutboundAll-node-*` 标记）：解析器识别为 `node` 且 `Name` 非空，
   **AK 行逐字节保留不动**，只**补登/重建 registry 记录**（状态置 `active`）。
 - 回归测试 `TestMigrateLegacyIdempotentKeepsAKByteForByte` 锁死了这一点：
   对已迁移文件再跑一次 `migrate-legacy`，**authorized_keys 字节不变、且不会产生新备份**，
@@ -199,7 +199,7 @@ cp ~/.dialhome/registry.json.pre-migrate-<ts> ~/.dialhome/registry.json
 | `legacy ak: ... no such file` | 系统 `~/.ssh/authorized_keys` 不存在 | 先 `touch` 并 `chmod 600`（RELAY_MANUAL §7.1） |
 | machines.json 读不到 | `<LEGACY-DIR>` 指错或文件名不符 | 确认目录里有 `machines.json`；没有也能迁，只是 `hardware` 为空 |
 | 节点名解析不出 / 行被当 foreign 保留 | 旧行注释格式异常、正则不匹配 | 检查旧行是否真以 `magpie-node-<name>$` / `magpie-tunnel-node-<port>$` 结尾；不匹配的行会**原样保留不报错** |
-| 迁移后 enrol 报 "unknown credential" | relay 数据目录不一致（`~/.dialhome` vs `--base`/`DIALHOME_RELAY_DIR`） | 正常运维别用覆盖开关；签发与迁移用同一份 `~/.dialhome`（RELAY_MANUAL §7.2） |
+| 迁移后 enrol 报 "unknown credential" | relay 数据目录不一致（`~/.OutboundAll` vs `--base`/`OUTBOUNDALL_RELAY_DIR`） | 正常运维别用覆盖开关；签发与迁移用同一份 `~/.OutboundAll`（RELAY_MANUAL §7.2） |
 | 负向测试/重连被反复重置 | 触发 OpenSSH 10 per-source penalty（`penalty: failed authentication`） | 放慢节奏；auth 失败的重试直接跳小时级（RELAY_MANUAL §7.5） |
 | 节点拨错地址 | `--advertise` 没设对（同机没设 `127.0.0.1:22`） | 同机部署必须 `relay init --advertise 127.0.0.1:22`；relay_port 推导陷阱见 RELAY_MANUAL §7.4 |
 | 旧 key 连不上新 helper | helper 二进制路径在 `init` 时烤进 AK 行，路径变了 | 重跑签发/迁移刷新 AK 行，或保持二进制路径不变（RELAY_MANUAL §7.6） |

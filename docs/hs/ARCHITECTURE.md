@@ -1,4 +1,4 @@
-# ARCHITECTURE — dialhome × Headscale + DERP + sing-box（v1，Phase 1 冻结稿）
+# ARCHITECTURE — OutboundAll × Headscale + DERP + sing-box（v1，Phase 1 冻结稿）
 
 > 状态：设计冻结，G1–G5 决策门待 CI 实证后回填（ADR 001–006 各标注）。
 > 参考实现语义清单：`analysis/REFERENCE_INVENTORY.md`；逐特性映射：`analysis/FEATURE_TRACEABILITY.md`。
@@ -14,7 +14,7 @@
 │     system_interface: false        │      │  ├ /derp → 内嵌 DERP (DERP over    │      │ (≥1.104.4)   │
 │     ssh_server: {enabled}          │      │            HTTPS)                  │      │ controller   │
 │     state_directory: %LOCALAPPDATA%│◄─────┤  └ :3478/udp → STUN                │      │ 身份(自曾)    │
-│       \dialhome-hs\tailscale\      │ 出站 │                                    │      └──────┬───────┘
+│       \OutboundAll-hs\tailscale\      │ 出站 │                                    │      └──────┬───────┘
 │  （无 TUN、无驱动、无服务、无入站） │      │ hs-controller（管理面服务）         │◄────────────┘
 │                                    │      │  邀请/节点/授权/审计 (SQLite)       │   tailnet 内
 └────────────────────────────────────┘      │ tailscale 客户端（controller 身份）│   tailscale ssh
@@ -33,7 +33,7 @@
 
 | 角色 | 进程 | 位置 | 权限 |
 |---|---|---|---|
-| Windows 节点 | `hs-node.exe`（supervisor，包装 sing-box） | `%LOCALAPPDATA%\Dialhome\bin\` | 标准用户，无提升 |
+| Windows 节点 | `hs-node.exe`（supervisor，包装 sing-box） | `%LOCALAPPDATA%\OutboundAll\bin\` | 标准用户，无提升 |
 | Windows 节点 | `sing-box.exe`（tailscale endpoint userspace + ssh_server） | 同上 | 标准用户 |
 | Linux 控制面 | `headscale`（上游，钉 0.29.7） | systemd 服务 | 专用低权用户 |
 | Linux 中继 | `derper`（上游 v1.102.1，CI 构建；自签 IP 证书 + DERP map 指纹 pin） | systemd 服务 | 专用低权用户 |
@@ -47,7 +47,7 @@ Linux 节点（将来出现时）不用 sing-box：官方 tailscaled 自带 Tail
 ## 3. 数据布局（全用户级 / 全低权）
 
 ```text
-Windows 节点（%LOCALAPPDATA%\Dialhome\）
+Windows 节点（%LOCALAPPDATA%\OutboundAll\）
     bin\        sing-box.exe, hs-node.exe
     config\     config.json（不含任何密钥）
     state\      tailscale\          ← 节点身份（tailscale state）；本目录即"节点本体"
@@ -57,8 +57,8 @@ Windows 节点（%LOCALAPPDATA%\Dialhome\）
 Linux VPS
     /etc/headscale/             配置 + 私钥（低权用户可读）
     /var/lib/headscale/         sqlite state
-    /etc/dialhome-hs/           hs-controller 配置
-    /var/lib/dialhome-hs/       hs-controller SQLite
+    /etc/OutboundAll-hs/           hs-controller 配置
+    /var/lib/OutboundAll-hs/       hs-controller SQLite
     /etc/caddy/                 Caddyfile
 ```
 
@@ -148,7 +148,7 @@ hs/
 docs/hs/               本文档 + SECURITY_MODEL + THREAT_MODEL + ADR/
 ```
 
-现行 `cmd/dialhome` / `internal/*` 原样保留（参考实现继续可用，CI 不变）。
+现行 `cmd/OutboundAll` / `internal/*` 原样保留（参考实现继续可用，CI 不变）。
 
 ## 9. 平台矩阵（声明口径）
 

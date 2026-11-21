@@ -5,11 +5,11 @@
 #
 # Layout produced under dist/:
 #   raw binaries      dist/<bin>-<os>-<arch>[.exe]   (upload/inspect flow)
-#   server package    dist/packages/dialhome-server-linux-amd64.tar.gz
+#   server package    dist/packages/OutboundAll-server-linux-amd64.tar.gz
 #                       hs-controller hs-deploycheck derper deploy.sh README-server.txt
-#   client packages   dist/packages/dialhome-client-{windows,linux}-amd64.{zip,tar.gz}
+#   client packages   dist/packages/OutboundAll-client-{windows,linux}-amd64.{zip,tar.gz}
 #                       hs-node[.exe] README-client.txt
-#   admin packages    dist/packages/dialhome-admin-{windows,linux}-amd64.{zip,tar.gz}
+#   admin packages    dist/packages/OutboundAll-admin-{windows,linux}-amd64.{zip,tar.gz}
 #                       hs-admin[.exe] README-admin.txt
 #   checksums         dist/packages/SHA256SUMS
 #
@@ -54,12 +54,12 @@ cp dist/hs-deploycheck-linux-amd64       "$S/hs-deploycheck"
 cp dist/derper-linux-amd64               "$S/derper"
 cp hs/deploy/deploy.sh                   "$S/deploy.sh"
 cat > "$S/README-server.txt" <<EOF
-dialhome server package ($VERSION)
+OutboundAll server package ($VERSION)
 Upload contents to /usr/local/bin on the VPS, then: bash deploy.sh $VERSION
 Requires: openssl, systemd. Security groups: 22/tcp + 443/tcp (3478/udp optional).
 See docs/hs/OPERATIONS.md and docs/hs/ADR/007-role-transport-assignment.md.
 EOF
-tar -czf dist/packages/dialhome-server-linux-amd64.tar.gz -C "$S" .
+tar -czf dist/packages/OutboundAll-server-linux-amd64.tar.gz -C "$S" .
 
 # --- client (受控节点) ---
 for os in windows linux; do
@@ -69,15 +69,15 @@ for os in windows linux; do
   if [ "$os" = windows ]; then bin="hs-node-windows-amd64.exe"; ext="zip"; fi
   cp "dist/$bin" "$C/$(basename "$bin" | sed "s/-$os-amd64//")"
   cat > "$C/README-client.txt" <<EOF
-dialhome client package ($VERSION, $os-amd64)
+OutboundAll client package ($VERSION, $os-amd64)
 受控节点安装包。Run: hs-node enroll ... (see docs/hs/ENROLLMENT.md), then
 "hs-node install-singbox" fetches the pinned sing-box (ADR-006 gate applies).
 Transport: sing-box embedded tailscale stack, userspace, no admin required.
 EOF
   if [ "$ext" = zip ]; then
-    (cd "$C" && zip -q -r "$REPO_ROOT/dist/packages/dialhome-client-windows-amd64.zip" .)
+    (cd "$C" && zip -q -r "$REPO_ROOT/dist/packages/OutboundAll-client-windows-amd64.zip" .)
   else
-    tar -czf dist/packages/dialhome-client-linux-amd64.tar.gz -C "$C" .
+    tar -czf dist/packages/OutboundAll-client-linux-amd64.tar.gz -C "$C" .
   fi
 done
 
@@ -89,15 +89,15 @@ for os in windows linux; do
   if [ "$os" = windows ]; then bin="hs-admin-windows-amd64.exe"; ext="zip"; fi
   cp "dist/$bin" "$A/$(basename "$bin" | sed "s/-$os-amd64//")"
   cat > "$A/README-admin.txt" <<EOF
-dialhome admin package ($VERSION, $os-amd64)
+OutboundAll admin package ($VERSION, $os-amd64)
 hs-admin talks to the controller API and shells into nodes via the OFFICIAL
 tailscale client (install it separately: tailscale up --login-server <url>).
 See docs/hs/ENROLLMENT.md (admin machine section) and docs/hs/OPERATIONS.md.
 EOF
   if [ "$ext" = zip ]; then
-    (cd "$A" && zip -q -r "$REPO_ROOT/dist/packages/dialhome-admin-windows-amd64.zip" .)
+    (cd "$A" && zip -q -r "$REPO_ROOT/dist/packages/OutboundAll-admin-windows-amd64.zip" .)
   else
-    tar -czf dist/packages/dialhome-admin-linux-amd64.tar.gz -C "$A" .
+    tar -czf dist/packages/OutboundAll-admin-linux-amd64.tar.gz -C "$A" .
   fi
 done
 

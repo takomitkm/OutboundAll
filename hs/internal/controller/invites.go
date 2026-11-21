@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/takomitkm/dialhome/hs/internal/authz"
+	"github.com/takomitkm/outboundall/hs/internal/authz"
 )
 
 // HeadscaleAPI is the control-plane capability hs-controller needs; concrete

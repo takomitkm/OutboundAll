@@ -8,8 +8,8 @@ import (
 // N-as-1: the autostart command line is exactly "BIN run" -- a drifted
 // command (wrong binary path, extra shell) would silently change what starts.
 func TestRunCommand(t *testing.T) {
-	got := RunCommand(`C:\Users\u\AppData\Local\Dialhome\bin\hs-node.exe`)
-	if want := `"C:\Users\u\AppData\Local\Dialhome\bin\hs-node.exe" run`; got != want {
+	got := RunCommand(`C:\Users\u\AppData\Local\OutboundAll\bin\hs-node.exe`)
+	if want := `"C:\Users\u\AppData\Local\OutboundAll\bin\hs-node.exe" run`; got != want {
 		t.Fatalf("RunCommand = %q, want %q", got, want)
 	}
 	if got := RunCommand("/usr/local/bin/hs-node"); got != `"/usr/local/bin/hs-node" run` {
@@ -39,7 +39,7 @@ func TestWindowsRunKeyUserLevel(t *testing.T) {
 // N-as-3: the systemd unit enables restart-on-failure with a 5s cadence and
 // never references root or system paths.
 func TestSystemdUnit(t *testing.T) {
-	u := SystemdUnit("/usr/local/bin/hs-node", "/home/u/.local/share/dialhome-hs/logs")
+	u := SystemdUnit("/usr/local/bin/hs-node", "/home/u/.local/share/OutboundAll-hs/logs")
 	for _, want := range []string{"ExecStart=/usr/local/bin/hs-node run", "Restart=on-failure", "RestartSec=5", "WantedBy=default.target"} {
 		if !strings.Contains(u, want) {
 			t.Fatalf("unit missing %q:\n%s", want, u)

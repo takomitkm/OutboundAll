@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/takomitkm/dialhome/internal/config"
+	"github.com/takomitkm/outboundall/internal/config"
 )
 
 // startSSHDD launches the node's local sshd in daemon-attached foreground mode

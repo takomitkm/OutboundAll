@@ -10,11 +10,11 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/takomitkm/dialhome/internal/config"
-	"github.com/takomitkm/dialhome/internal/crypto"
-	"github.com/takomitkm/dialhome/internal/errs"
-	"github.com/takomitkm/dialhome/internal/platform"
-	"github.com/takomitkm/dialhome/internal/relay"
+	"github.com/takomitkm/outboundall/internal/config"
+	"github.com/takomitkm/outboundall/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/errs"
+	"github.com/takomitkm/outboundall/internal/platform"
+	"github.com/takomitkm/outboundall/internal/relay"
 )
 
 // Run executes argv (without the program name).
@@ -45,7 +45,7 @@ func Run(argv []string) error {
 	case "keygen":
 		return runKeygen(rest)
 	case "version":
-		fmt.Println("dialhome " + version + " (" + commit + ")")
+		fmt.Println("OutboundAll " + version + " (" + commit + ")")
 		return nil
 	default:
 		return fmt.Errorf("%w: unknown command %q", errs.ErrUsage, role)
@@ -53,26 +53,26 @@ func Run(argv []string) error {
 }
 
 func usage() error {
-	fmt.Print(`dialhome -- reverse SSH access for NAT-ed, admin-less machines
+	fmt.Print(`OutboundAll -- reverse SSH access for NAT-ed, admin-less machines
 
-  dialhome node install [--mode temporary|persistent] [--credential FILE] [--relay USER@HOST:PORT] [--name NAME] [--openssh-zip FILE]
-  dialhome node run | status | stop | uninstall | logs [channel]
-  dialhome controller init | list | status | anchors <node> | shell <node> | exec <node> <command...>
-  dialhome relay init [--advertise HOST:PORT] [--relay-user USER] | list | inspect <name> | revoke <name> | purge <name> | ports
-  dialhome relay credentials issue <name> [--manager-pub FILE] | revoke <id>
-  dialhome relay migrate-legacy [LEGACY-DIR]   (idempotent: re-registers surviving AK lines)
-  dialhome relay-helper --port <p> tunnel | --credential <id> enroll   (internal forced command)
-  dialhome autostart install | uninstall | status       (user scope, no admin)
-  dialhome service install | uninstall | status --scope system   (OPTIONAL, needs root, never default)
-  dialhome migrate --from-legacy [--legacy-dir DIR]
-  dialhome doctor
-  dialhome keygen --out FILE [--comment TEXT]
-  dialhome version
+  OutboundAll node install [--mode temporary|persistent] [--credential FILE] [--relay USER@HOST:PORT] [--name NAME] [--openssh-zip FILE]
+  OutboundAll node run | status | stop | uninstall | logs [channel]
+  OutboundAll controller init | list | status | anchors <node> | shell <node> | exec <node> <command...>
+  OutboundAll relay init [--advertise HOST:PORT] [--relay-user USER] | list | inspect <name> | revoke <name> | purge <name> | ports
+  OutboundAll relay credentials issue <name> [--manager-pub FILE] | revoke <id>
+  OutboundAll relay migrate-legacy [LEGACY-DIR]   (idempotent: re-registers surviving AK lines)
+  OutboundAll relay-helper --port <p> tunnel | --credential <id> enroll   (internal forced command)
+  OutboundAll autostart install | uninstall | status       (user scope, no admin)
+  OutboundAll service install | uninstall | status --scope system   (OPTIONAL, needs root, never default)
+  OutboundAll migrate --from-legacy [--legacy-dir DIR]
+  OutboundAll doctor
+  OutboundAll keygen --out FILE [--comment TEXT]
+  OutboundAll version
 
 Three identities: node tunnel key (local-only), controller manager key (controller-only),
 short-lived enrollment credential (one-shot). All channels are literal 127.0.0.1 loopback.
 Docs: docs/README.md (manual index), docs/ARCHITECTURE.md, docs/SECURITY_MODEL.md,
-docs/NODE_MANUAL.md, docs/CONTROLLER_MANUAL.md, docs/RELAY_MANUAL.md, docs/man-dialhome.md
+docs/NODE_MANUAL.md, docs/CONTROLLER_MANUAL.md, docs/RELAY_MANUAL.md, docs/man-OutboundAll.md
 `)
 	return nil
 }
@@ -82,7 +82,7 @@ var version = "dev"
 var commit = "none"
 
 // SetVersion injects build metadata from main (ldflags cannot target this package
-// directly when the binary is built from ./cmd/dialhome).
+// directly when the binary is built from ./cmd/OutboundAll).
 func SetVersion(v, c string) {
 	if v != "" {
 		version = v
@@ -97,7 +97,7 @@ func SetVersion(v, c string) {
 func runKeygen(args []string) error {
 	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
 	out := fs.String("out", "", "private key output path (created 0600-equivalent)")
-	comment := fs.String("comment", "dialhome-node", "key comment")
+	comment := fs.String("comment", "OutboundAll-node", "key comment")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -159,13 +159,13 @@ func autostartStatus() error {
 		}
 		fmt.Printf("AUTOSTART = %s  [%s]\n", boolWord(present), value)
 	case "darwin":
-		p := filepath.Join(launchAgentsDir(), "dialhome-node.plist")
+		p := filepath.Join(launchAgentsDir(), "OutboundAll-node.plist")
 		_, err := os.Stat(p)
 		fmt.Printf("AUTOSTART = %s  [%s]\n", boolWord(err == nil), p)
 	default:
 		_, unitErr := os.Stat(userUnitPath())
 		home, _ := os.UserHomeDir()
-		xdg := filepath.Join(home, ".config", "autostart", "dialhome-node.desktop")
+		xdg := filepath.Join(home, ".config", "autostart", "OutboundAll-node.desktop")
 		_, xdgErr := os.Stat(xdg)
 		fmt.Printf("systemd --user unit = %s  [%s]\n", boolWord(unitErr == nil), userUnitPath())
 		fmt.Printf("XDG autostart       = %s  [%s]\n", boolWord(xdgErr == nil), xdg)
@@ -191,7 +191,7 @@ func runService(args []string) error {
 		return err
 	}
 	if *scope != "system" {
-		return fmt.Errorf("%w: only --scope system is supported here; use 'dialhome autostart' for user scope", errs.ErrUsage)
+		return fmt.Errorf("%w: only --scope system is supported here; use 'OutboundAll autostart' for user scope", errs.ErrUsage)
 	}
 	verb := ""
 	for _, a := range fs.Args() {
@@ -238,12 +238,12 @@ func runMigrate(args []string) error {
 
 func runDoctor(args []string) error {
 	np := nodeLayout()
-	fmt.Println("dialhome doctor")
+	fmt.Println("OutboundAll doctor")
 	fmt.Printf("  platform            = %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("  node data dir       = %s\n", np.Data)
 	cfg, err := config.Load(np.Config)
 	if err != nil {
-		fmt.Println("  node config         = MISSING (run 'dialhome node install' first)")
+		fmt.Println("  node config         = MISSING (run 'OutboundAll node install' first)")
 	} else {
 		fmt.Printf("  node config         = ok (name=%s mode=%s channels=%d)\n",
 			cfg.Node.Name, cfg.Node.Mode, len(cfg.Node.Channels))

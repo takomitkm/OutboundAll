@@ -1,7 +1,7 @@
 // akfile.go -- structured authorized_keys maintenance.
 //
 // Contract (docs/SECURITY_MODEL.md §3):
-//   - parse into entries (dialhome-managed lines are recognised, everything else is
+//   - parse into entries (OutboundAll-managed lines are recognised, everything else is
 //     preserved byte-for-byte)
 //   - mutate ONLY the target node's line
 //   - atomic write (tmp+rename) with a timestamped backup, all under the caller's lock
@@ -17,22 +17,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/crypto"
 )
 
-// dialhome-node-<name> / dialhome-credential-<id> markers live at end of comment.
+// OutboundAll-node-<name> / OutboundAll-credential-<id> markers live at end of comment.
 var (
-	nodeMarkerRe       = regexp.MustCompile(`dialhome-node-([a-z0-9-]+)$`)
-	credentialMarkerRe = regexp.MustCompile(`dialhome-credential-([a-z0-9-]+)$`)
+	nodeMarkerRe       = regexp.MustCompile(`OutboundAll-node-([a-z0-9-]+)$`)
+	credentialMarkerRe = regexp.MustCompile(`OutboundAll-credential-([a-z0-9-]+)$`)
 )
 
 // Entry is one authorized_keys line.
 type Entry struct {
 	Raw   string
 	Kind  string // "node" | "credential" | "other"
-	Name  string // node name or credential id (dialhome lines only)
+	Name  string // node name or credential id (OutboundAll lines only)
 	Ports []int  // permitlisten ports (node lines)
-	KeyFP string // SHA256 fingerprint of the key body (dialhome lines)
+	KeyFP string // SHA256 fingerprint of the key body (OutboundAll lines)
 }
 
 // parseAKLine parses an authorized_keys line that MAY carry an options prefix
@@ -149,7 +149,7 @@ func NodeLine(helperPath string, ports Ports, pub crypto.AuthorizedKey, name str
 	opts := fmt.Sprintf(
 		"restrict,command=%s,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
 		AKOptionValue(helperCommand(helperPath, ports.SSH)), ports.SSH, ports.App)
-	return opts + " " + pub.Line()[:strings.LastIndex(pub.Line(), " ")+1] + "dialhome-node-" + name
+	return opts + " " + pub.Line()[:strings.LastIndex(pub.Line(), " ")+1] + "OutboundAll-node-" + name
 }
 
 // PublicKeyLine is a parsed public key body (type + base64 body + comment).
@@ -172,13 +172,13 @@ func NodeLineRaw(helperPath string, ports Ports, pub PublicKeyLine, name string)
 	opts := fmt.Sprintf(
 		"restrict,command=%s,port-forwarding,permitlisten=\"127.0.0.1:%d\",permitlisten=\"127.0.0.1:%d\",permitopen=\"127.0.0.1:1\"",
 		AKOptionValue(helperCommand(helperPath, ports.SSH)), ports.SSH, ports.App)
-	return opts + " " + LineFromParts(pub) + " dialhome-node-" + name
+	return opts + " " + LineFromParts(pub) + " OutboundAll-node-" + name
 }
 
 // CredentialLine renders the enrollment-credential restricted line (no forwarding at all).
 func CredentialLine(helperPath string, credID string, pub crypto.AuthorizedKey) string {
 	return fmt.Sprintf("restrict,command=%s,no-port-forwarding,no-pty,no-user-rc %s",
-		AKOptionValue(helperCommandEnroll(helperPath, credID)), pub.Type+" "+b64Body(pub)+" dialhome-credential-"+credID)
+		AKOptionValue(helperCommandEnroll(helperPath, credID)), pub.Type+" "+b64Body(pub)+" OutboundAll-credential-"+credID)
 }
 
 func helperCommand(helperPath string, port int) string {
@@ -197,7 +197,7 @@ func b64Body(pub crypto.AuthorizedKey) string {
 	return ""
 }
 
-// UpsertNode replaces (or appends) the dialhome-node-<name> line, preserving all others.
+// UpsertNode replaces (or appends) the OutboundAll-node-<name> line, preserving all others.
 func UpsertNode(entries []Entry, name, newLine string) ([]Entry, bool) {
 	out := make([]Entry, 0, len(entries)+1)
 	replaced := false
@@ -215,7 +215,7 @@ func UpsertNode(entries []Entry, name, newLine string) ([]Entry, bool) {
 	return out, replaced
 }
 
-// RemoveNode deletes the dialhome-node-<name> line; reports whether it existed.
+// RemoveNode deletes the OutboundAll-node-<name> line; reports whether it existed.
 func RemoveNode(entries []Entry, name string) ([]Entry, bool) {
 	out := make([]Entry, 0, len(entries))
 	removed := false
@@ -229,7 +229,7 @@ func RemoveNode(entries []Entry, name string) ([]Entry, bool) {
 	return out, removed
 }
 
-// RemoveCredential deletes a dialhome-credential-<id> line.
+// RemoveCredential deletes a OutboundAll-credential-<id> line.
 func RemoveCredential(entries []Entry, credID string) ([]Entry, bool) {
 	out := make([]Entry, 0, len(entries))
 	removed := false

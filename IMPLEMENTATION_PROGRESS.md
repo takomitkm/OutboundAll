@@ -1,4 +1,4 @@
-# IMPLEMENTATION_PROGRESS — dialhome × Headscale 重实现进度台账
+# IMPLEMENTATION_PROGRESS — OutboundAll × Headscale 重实现进度台账
 
 > 源规格 §16 要求持续更新。每步（commit+push）后更新本文件。
 > 规格正本：PLAN.md；参考语义：analysis/REFERENCE_INVENTORY.md；特性映射：analysis/FEATURE_TRACEABILITY.md。
@@ -21,9 +21,9 @@
     8. 中途踩坑（已修）：schtasks 下 sing-box Taildrop 相对路径落到 system32 被拒（已 pin taildrop_directory 到 state 目录）
   - **结论（终局取证）**：在 139 上用官方 tailscale 1.104.7 做了最小复现——设 `TS_DEBUG_USE_DERP_HTTP=1` 后客户端日志仍报 `context deadline exceeded` 连 DERP（tailscaled.log），而 curl 到同一 DERP 端点（8080 与 18080）均实测 101 Switching Protocols + DERP v2；headscale DERP map 正确（127.0.0.1:18080）。即**明文 DERP 的 envknob 开关在本版本对客户端路径无效**（疑似正式构建裁剪了 debugUseDERPHTTP 或经控制面下发的 derp URL 强制 https）。tailscale status 的 health 明确报 "could not connect to DERP relay server"。
   - **唯一确定可行路径**：DERP over TLS + 客户端信任证书 ⇒ 需要一个域名（Let's Encrypt 签证书，系统根 CA 已信任）+ VPS 入站 443/tcp。Tailscale 没有"信任自定义 CA"的配置项（types.go 的 InsecureForTests 仅单测用），自签证书对端不认。
-  - 用户旧版 dialhome 之所以"只要能联网就受控"，是因为 relay 的 SSH 端口本身就是会合点（数据在控制连接里）；Tailscale 架构把两者拆开，DERP 必须可认证 TLS——这是模型差异，不是配置错误。
+  - 用户旧版 OutboundAll 之所以"只要能联网就受控"，是因为 relay 的 SSH 端口本身就是会合点（数据在控制连接里）；Tailscale 架构把两者拆开，DERP 必须可认证 TLS——这是模型差异，不是配置错误。
   - 真机部署缺陷共修复 8 个（CI 无法模拟的）：226/NAMESPACE、数据目录属主、socket 权限、H6 分叉、policy 属主、deploy restart 语义、controller --server 漂移、taildrop CWD
-- **Phase 9 完成（真机 139.9.101.203, 2c/1G）**：DEPLOY-OK 双健康端点；真机全链冒烟（invite→enroll→revoke→deny resume→policy 同步 deny）。真机抓出并修复 5 个部署级缺陷（CI 无法模拟的）：systemd 226/NAMESPACE（RuntimeDirectory）、controller 数据目录属主、headscale unix socket 权限（双服务改 dialhome 用户）、H6 类分叉状态（root init vs dialhome serve 的 store 路径）、policy 文件属主（revoke 时 reload 被拒）。资源占用 headscale 53MB + controller 10MB = 63MB（1G 预算内）。
+- **Phase 9 完成（真机 139.9.101.203, 2c/1G）**：DEPLOY-OK 双健康端点；真机全链冒烟（invite→enroll→revoke→deny resume→policy 同步 deny）。真机抓出并修复 5 个部署级缺陷（CI 无法模拟的）：systemd 226/NAMESPACE（RuntimeDirectory）、controller 数据目录属主、headscale unix socket 权限（双服务改 OutboundAll 用户）、H6 类分叉状态（root init vs OutboundAll serve 的 store 路径）、policy 文件属主（revoke 时 reload 被拒）。资源占用 headscale 53MB + controller 10MB = 63MB（1G 预算内）。
 - **Phase 7 完成（run 87e7c3f 全 5 job 绿）**：H4a 控制面停 15s 节点存活、H4b 恢复后同身份重连（无重复注册）。九类失败全部有证据或排除记录（ADR-004 终稿表）；DERP 多 region 为部署产物（Phase 9 真机可加）。
 - **Phase 6 完成（run fad7a51 全 5 job 绿）**：G1-a 收口——sing-box 路由引擎原生把 tailnet 入站引到回环（自身 IP 拨号重映射 127.0.0.1，endpoint.go NewConnectionEx 源码证据）；双闸模型（headscale grant=WHO × node route allowlist=WHAT）；**安全发现已修**：sing-box 裸默认会把任意 tailnet 拨号转发到同端口回环 → hs-node 渲染永远带 reject-all；ssh_server:22 在 reject-all 下存活（tsnet listener 先于路由器）。ADR-005 Accepted。
 - **Phase 3 完成（run 74cb225，全 5 job 绿）**：hs-controller（邀请/兑换/resume/撤销/审计 + CLI=API thin client）+ hs-node（enroll/resume/boot-wait/auth-hook）+ e2e 两条真链（phase1b 架构门 + phase3 全栈登记链）。CI 红轮战果：H6 类分叉状态（CLI 直写 registry vs serve 内存态 → CLI 改 API thin client）、windows 锁死锁（包级 mutex 套阻塞 LockFileEx → store 改 bounded TryAcquire retry）、unix 目录 0600（去执行位不可遍历 → 0700）、preauthkeys JSON 形状、SIGKILL 孤儿 sing-box 掩盖撤销语义（e2e kill 改 SIGTERM 优先）。
@@ -93,7 +93,7 @@
 ## Phase 13 — 架构分家（受控端 sing-box，其余上游原版）+ 安装包拆分 + CD（2026-11-20）
 
 远端对齐：本地 main = origin/main = d377064（唯一远端新增 = LICENSE AGPL-3.0，他线推入，线性无冲突）。
-校机确认无源码 repo（仅运行时目录 %LOCALAPPDATA%\Dialhome），不需建。
+校机确认无源码 repo（仅运行时目录 %LOCALAPPDATA%\OutboundAll），不需建。
 
 **ADR-007**（docs/hs/ADR/007-role-transport-assignment.md）四决定 + 一账：
 - D1 受控节点 = sing-box（默认；约束解除即换回官方，如 Linux 节点）
@@ -106,8 +106,8 @@
   ECDSA P-256 1 年期证书并打印 CertName 提示）。域名/LE/续期基建全部不需要
 - D5 公开中继账（T-17）：derper 不验证客户端（headscale 无准入端点），限流旗标 + SG 闸门缓解
 
-**deploy.sh v2**：derper systemd 单元（dialhome 用户、限流、ProtectSystem）→ 首启自动出证书 →
-openssl 算 DER sha256 → 写 /etc/headscale/derp-dialhome.json（RegionID 900、STUNPort -1）→
+**deploy.sh v2**：derper systemd 单元（OutboundAll 用户、限流、ProtectSystem）→ 首启自动出证书 →
+openssl 算 DER sha256 → 写 /etc/headscale/derp-OutboundAll.json（RegionID 900、STUNPort -1）→
 headscale 配置权威重写（listen_addr 收紧 127.0.0.1、derp.urls=[]→paths=map 文件、备份旧稿）→
 摘 18080 nc 遗留桥（校机隧道本来就是 -L 18080→8080 直连）。
 
@@ -129,7 +129,7 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
 1. 外网 TLSv1.3 + 证书指纹逐字匹配 pin（sha256-raw:8d6220c3…）
 2. 校机 sing-box ↔ 139:443 连续 Established
 3. 本机 SOCKS5 → 100.64.0.2:22 → SSH-2.0-sing-box banner
-4. 官方客户端（139, vps-admin 100.64.0.7）netcheck = dialhome-vps 3ms，
+4. 官方客户端（139, vps-admin 100.64.0.7）netcheck = OutboundAll-vps 3ms，
    tailscale ssh YiZhidi@win11-hv1 在 Windows 校机执行成功
 
 真机修出的两个新坑：
@@ -143,10 +143,10 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
 ## Phase 13c — 管理机在本机落地（2026-11-22 真机）
 
 装官方 Tailscale 客户端（MSI → 服务模式，Automatic），登记为 local-admin-2（100.64.0.10）：
-- `tailscale ping win11-hv1` → `pong via DERP(dialhome) 22ms`
+- `tailscale ping win11-hv1` → `pong via DERP(OutboundAll) 22ms`
 - `tailscale ssh YiZhidi@win11-hv1` → `Win11-HV1 / 7.7.0` rc=0
 - `hs-admin doctor` → `tailscale state: Running`；`hs-admin exec win11-hv1` → `Win11-HV1` rc=0
-- 控制面隧道做成登录任务 `DialhomeControlTunnel`（18080/18800，断线自愈）
+- 控制面隧道做成登录任务 `OutboundAllControlTunnel`（18080/18800，断线自愈）
 
 真机踩坑（已写进 ENROLLMENT §3 实装记录）：
 1. 用户态 dev-mode 不可用于日常：后端随最后客户端断开而停；`tailscale ssh` 在自定义
@@ -161,7 +161,7 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
 - derper 一直在 `3478/udp` 跑 STUN（默认 `-stun=true`），但 DERP map 宣告 `stunport: -1`
   让客户端不用；已改为 `stunport: 3478`（SG 已放行 3478/udp）。本机 netcheck 变为
   `UDP: true`、公网映射 `183.36.189.192:46863`。
-- **直连仍不可行**：peer `Endpoints=[]`、`CurAddr=[]`、`Relay=dialhome`——sing-box 的
+- **直连仍不可行**：peer `Endpoints=[]`、`CurAddr=[]`、`Relay=OutboundAll`——sing-box 的
   tailscale endpoint 不上报 UDP 端点，打洞没有候选地址。`tailscale ping` 恒走 DERP。
 - 顺带修掉两个真机 bug：deploy.sh 的 18080 "遗留 nc 清理"在单端口化后会**误杀
   headscale 本体**（已加进程名判定，只杀 nc）；`hs-deploycheck` 默认探活端口

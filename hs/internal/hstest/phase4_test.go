@@ -3,10 +3,10 @@
 // Phase-4 chain (PLAN step 6 / ADR-003): deny-by-default enforcement, proven
 // over the real stack. Two nodes enroll against one controller:
 //
-//	node-b  profile "no-ssh"  -> tagged tag:dialhome-node only
-//	node-c  default profile   -> tagged tag:dialhome-node + tag:dialhome-node-ssh
+//	node-b  profile "no-ssh"  -> tagged tag:OutboundAll-node only
+//	node-c  default profile   -> tagged tag:OutboundAll-node + tag:OutboundAll-node-ssh
 //
-// The controller (its own tailscale identity tagged tag:dialhome-controller)
+// The controller (its own tailscale identity tagged tag:OutboundAll-controller)
 // must reach node-c:22 and NOT node-b:22. This is the server-side per-node
 // enforcement the reference implemented with permitlisten -- here the
 // enforcement point is the Headscale policy (G4).
@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/takomitkm/dialhome/hs/internal/authz"
+	"github.com/takomitkm/outboundall/hs/internal/authz"
 )
 
 func TestPhase4Chain(t *testing.T) {
@@ -62,13 +62,13 @@ func TestPhase4Chain(t *testing.T) {
 	// deny-by-default grants shape.
 	policy0 := "{\n" +
 		"  \"tagOwners\": {\n" +
-		"    \"tag:dialhome-controller\": [\"ci@\"],\n" +
-		"    \"tag:dialhome-node\": [\"ci@\"],\n" +
-		"    \"tag:dialhome-node-ssh\": [\"ci@\"]\n" +
+		"    \"tag:OutboundAll-controller\": [\"ci@\"],\n" +
+		"    \"tag:OutboundAll-node\": [\"ci@\"],\n" +
+		"    \"tag:OutboundAll-node-ssh\": [\"ci@\"]\n" +
 		"  },\n" +
 		"  \"acls\": [ { \"action\": \"accept\", \"src\": [\"*\"], \"dst\": [\"*:*\"] } ],\n" +
 		"  \"ssh\": [\n" +
-		"    { \"action\": \"accept\", \"src\": [\"ci@\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"    { \"action\": \"accept\", \"src\": [\"ci@\"], \"dst\": [\"tag:OutboundAll-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
 		"  ]\n" +
 		"}\n"
 	if err := os.WriteFile(me("hs/policy.json"), []byte(policy0), 0o644); err != nil {
@@ -158,12 +158,12 @@ log:
 	}
 
 	// ---- controller tailscale identity, TAGGED (main chain restored) ----
-	// The grants src is tag:dialhome-controller; a peer matches a grant only
+	// The grants src is tag:OutboundAll-controller; a peer matches a grant only
 	// through identities it actually holds (CI-proven: an untagged ctrl was
 	// invisible to the peer map even with the policy fully loaded). The
 	// controller therefore registers with its tag.
 	out, code := runBin(t, nil, hsBin, "--config", me("hs/config.yaml"),
-		"preauthkeys", "create", "--user", "1", "--tags", "tag:dialhome-controller", "-o", "json")
+		"preauthkeys", "create", "--user", "1", "--tags", "tag:OutboundAll-controller", "-o", "json")
 	if code != 0 {
 		t.Fatalf("ctrl preauthkey failed: %s", out)
 	}
@@ -180,7 +180,7 @@ log:
 		"--accept-dns=false"); code != 0 {
 		t.Fatalf("ctrl tailscale up failed: %s", out)
 	}
-	t.Logf("controller identity registered (tag:dialhome-controller)")
+	t.Logf("controller identity registered (tag:OutboundAll-controller)")
 
 	// ---- two nodes: node-b (no-ssh) and node-c (default ssh) ----
 	// each node gets its OWN home (state dir + instance lock are per-layout;
@@ -190,8 +190,8 @@ log:
 		nodeEnv := []string{
 			"HOME=" + nodeHome,
 			"XDG_CONFIG_HOME=" + nodeHome + "/.config",
-			"DIALHOME_HS_SINGBOX=" + sbBin,
-			"DIALHOME_HS_TEST_ALLOW_HTTP=1",
+			"OUTBOUNDALL_HS_SINGBOX=" + sbBin,
+			"OUTBOUNDALL_HS_TEST_ALLOW_HTTP=1",
 		}
 		out, code := runBin(t, ctlEnv, ctlBin, "invite", "create", "--api", "http://127.0.0.1:8802",
 			"--label", hostname, "--profile", profile)
@@ -228,7 +228,7 @@ log:
 		// Phase-6 experiment hook: a service port >= 1 edits the node config
 		// (between enroll and run) so hs-node renders the route rules for it.
 		if svcPort >= 1 {
-			cfgPath := nodeHome + "/.config/dialhome-hs/config/config.json"
+			cfgPath := nodeHome + "/.config/OutboundAll-hs/config/config.json"
 			cb, rerr := os.ReadFile(cfgPath)
 			if rerr != nil {
 				t.Fatal(rerr)
@@ -406,16 +406,16 @@ log:
 	// node-side WHAT gate (route rules) ships with the node config.
 	fullPolicy := "{\n" +
 		"  \"tagOwners\": {\n" +
-		"    \"tag:dialhome-controller\": [\"ci@\"],\n" +
-		"    \"tag:dialhome-node\": [\"ci@\"],\n" +
-		"    \"tag:dialhome-node-ssh\": [\"ci@\"]\n" +
+		"    \"tag:OutboundAll-controller\": [\"ci@\"],\n" +
+		"    \"tag:OutboundAll-node\": [\"ci@\"],\n" +
+		"    \"tag:OutboundAll-node-ssh\": [\"ci@\"]\n" +
 		"  },\n" +
 		"  \"grants\": [\n" +
-		"    { \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"ip\": [\"tcp:22\"] },\n" +
-		"    { \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node\"], \"ip\": [\"tcp:8443\"] }\n" +
+		"    { \"src\": [\"tag:OutboundAll-controller\"], \"dst\": [\"tag:OutboundAll-node-ssh\"], \"ip\": [\"tcp:22\"] },\n" +
+		"    { \"src\": [\"tag:OutboundAll-controller\"], \"dst\": [\"tag:OutboundAll-node\"], \"ip\": [\"tcp:8443\"] }\n" +
 		"  ],\n" +
 		"  \"ssh\": [\n" +
-		"    { \"action\": \"accept\", \"src\": [\"tag:dialhome-controller\"], \"dst\": [\"tag:dialhome-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
+		"    { \"action\": \"accept\", \"src\": [\"tag:OutboundAll-controller\"], \"dst\": [\"tag:OutboundAll-node-ssh\"], \"users\": [\"autogroup:nonroot\"] }\n" +
 		"  ]\n" +
 		"}\n"
 	if err := os.WriteFile(me("hs/policy.json"), []byte(fullPolicy), 0o644); err != nil {

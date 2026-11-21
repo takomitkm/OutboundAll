@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/crypto"
-	"github.com/takomitkm/dialhome/internal/errs"
-	"github.com/takomitkm/dialhome/internal/platform"
-	"github.com/takomitkm/dialhome/internal/relay"
+	"github.com/takomitkm/outboundall/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/errs"
+	"github.com/takomitkm/outboundall/internal/platform"
+	"github.com/takomitkm/outboundall/internal/relay"
 )
 
 // relayPaths resolves the on-disk locations for the relay role.
@@ -27,7 +27,7 @@ func relayPaths() (store, ak, helperBin string, err error) {
 	}
 	bin, err := os.Executable()
 	if err != nil {
-		bin = "dialhome"
+		bin = "OutboundAll"
 	}
 	home, herr := os.UserHomeDir()
 	if herr != nil {
@@ -36,7 +36,7 @@ func relayPaths() (store, ak, helperBin string, err error) {
 	akPath := filepath.Join(home, ".ssh", "authorized_keys")
 	// Tests (and operator-side dry runs) can redirect the AK to a sandbox file.
 	// Production never sets this; the default is always the system AK.
-	if custom := os.Getenv("DIALHOME_RELAY_AK"); custom != "" {
+	if custom := os.Getenv("OUTBOUNDALL_RELAY_AK"); custom != "" {
 		akPath = custom
 	}
 	return base, akPath, bin, nil
@@ -179,7 +179,7 @@ func runRelayImpl(args []string) error {
 }
 
 func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, managerPubPath string) error {
-	kp, err := crypto.Generate("dialhome-credential")
+	kp, err := crypto.Generate("OutboundAll-credential")
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func relayCredentialIssue(store *relay.Store, akPath, helperBin, name string, ma
 		return err
 	}
 	fmt.Println("CREDENTIAL-B64 = " + credB64)
-	fmt.Println("feed it to: dialhome node install --credential <that b64 or file>")
+	fmt.Println("feed it to: OutboundAll node install --credential <that b64 or file>")
 	return nil
 }
 
@@ -500,19 +500,19 @@ func advertisePort(r *relay.Registry) int {
 	return 18322
 }
 
-// relayDataDir is ALWAYS ~/.dialhome on the relay machine -- it must not honor
-// DIALHOME_DATA_DIR (that override exists for node/controller testing; the helper
+// relayDataDir is ALWAYS ~/.OutboundAll on the relay machine -- it must not honor
+// OUTBOUNDALL_DATA_DIR (that override exists for node/controller testing; the helper
 // runs under sshd whose env never matches the caller's shell, and a mismatch makes
 // credentials "unknown"). Explicit --base still wins for tests.
 func relayDataDir() string {
-	if custom := os.Getenv("DIALHOME_RELAY_DIR"); custom != "" {
+	if custom := os.Getenv("OUTBOUNDALL_RELAY_DIR"); custom != "" {
 		return custom
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return platform.DataDir("relay")
 	}
-	return filepath.Join(home, ".dialhome")
+	return filepath.Join(home, ".OutboundAll")
 }
 
 func randHex(n int) string {

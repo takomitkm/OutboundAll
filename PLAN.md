@@ -1,6 +1,6 @@
-# PLAN — dialhome 能力在 Headscale + DERP + sing-box 上的重实现（终版执行计划）
+# PLAN — OutboundAll 能力在 Headscale + DERP + sing-box 上的重实现（终版执行计划）
 
-> 源规格：用户《Engineering Task: Reimplement dialhome capabilities on Headscale + DERP + sing-box》（2026-11-17）。
+> 源规格：用户《Engineering Task: Reimplement OutboundAll capabilities on Headscale + DERP + sing-box》（2026-11-17）。
 > 本文件 = 该规格经 Phase 0 全量文档调研 + 依赖版本核实后的**修改终版**，是本工作的唯一执行正本。
 > 与源规格冲突处，以本文「与源规格的偏差」一节为准；未列出的内容原样继承源规格。
 > 基线：`main @ ecec22b`（2026-11-17，本地 = origin/main，0/0）。
@@ -43,7 +43,7 @@
 | # | 源规格 | 终版 | 理由 |
 |---|---|---|---|
 | D1 | Phase 1 产出 `docs/ARCHITECTURE.md` 等（根级覆盖） | 新架构文档全部进 **`docs/hs/`**（`docs/hs/ARCHITECTURE.md`、`docs/hs/ADR/…`） | 现行 Go 版同名文档**必须保留**（源规格 §16 自己要求"preserve the existing working implementation"）；文档是现行版验收证据链的一部分 |
-| D2 | Phase 8 目录 `cmd/controller`、`internal/…` | 新实现全部进 **`hs/`** 子树：`hs/cmd/hs-node`、`hs/cmd/hs-controller`、`hs/cmd/hs-admin`、`hs/internal/…`、`hs/deploy/…` | 与现行 `cmd/dialhome` / `internal/*` 零冲突；同一 Go module，共享 `internal/logging`、`internal/lockfile` 等成熟件 |
+| D2 | Phase 8 目录 `cmd/controller`、`internal/…` | 新实现全部进 **`hs/`** 子树：`hs/cmd/hs-node`、`hs/cmd/hs-controller`、`hs/cmd/hs-admin`、`hs/internal/…`、`hs/deploy/…` | 与现行 `cmd/OutboundAll` / `internal/*` 零冲突；同一 Go module，共享 `internal/logging`、`internal/lockfile` 等成熟件 |
 | D3 | 二进制命名 | `hs-node`（Windows 节点包装器）、`hs-controller`（VPS 管理面服务）、`hs-admin`（运维 CLI） | 同 D2 |
 | D4 | Phase 2 直接启用 sing-box ssh_server | **门控启用**（ADR-006）：测试/CI 全量启用；生产默认 `disable_forwarding: true` + deny-by-default SSH ACL；**生产解锁须满足其一**：(a) sagernet fork 跟进 ≥1.104.4 对应修复；(b) 机主书面接受残余风险并记录在 ADR | 依赖核实发现的 SSH 安全缺口（§0.2），源规格 Phase 1 自身要求"不能静默绕过" |
 | D5 | （未提）控制端 SSH 客户端 | VPS 控制端用**官方 Tailscale 客户端（≥1.104.4）**承载 controller tailnet 身份与 `tailscale ssh` | 官方客户端满足公告阈值；源规格 §8 本就要求"用真实支持的 Tailscale SSH 客户端路径" |

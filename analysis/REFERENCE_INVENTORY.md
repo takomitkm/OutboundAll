@@ -1,4 +1,4 @@
-# REFERENCE_INVENTORY — 参考实现（现行 Go 版 dialhome）全量清单
+# REFERENCE_INVENTORY — 参考实现（现行 Go 版 OutboundAll）全量清单
 
 > Phase 0 产出（源规格 §3）。基线 `main @ ecec22b`；调研日期 2026-11-17。
 > 范围：`docs/` 全部 22 份 + README + 源码树 + CI + git 历史。
@@ -18,7 +18,7 @@
 | docs/CONFIG_SCHEMA.md | 设计冻结 | config.json/identity.json/machines.json/registry.json/credential 五种结构；校验不变式 |
 | docs/PORTS.md | legacy 存档 | 端口模型（对外 1 端口）；开放开户口（18443，旧机制勿搬） |
 | docs/NODE_MANUAL.md | 手册 | install 19 步；supervisor 重试梯参数；自启动三平台；卸载语义（保留数据） |
-| docs/CONTROLLER_MANUAL.md | 手册 | 管理私钥纪律；anchors 两类（ssh_alias/dialhome）；known_hosts 私有化；trail 诊断 |
+| docs/CONTROLLER_MANUAL.md | 手册 | 管理私钥纪律；anchors 两类（ssh_alias/OutboundAll）；known_hosts 私有化；trail 诊断 |
 | docs/RELAY_MANUAL.md | 手册 | relay init/凭证签发/revoke vs purge；AK 写规程；revoke/purge 语义分层 |
 | docs/MIGRATION_GUIDE.md | 手册 | 旧→新迁移（只改 forced command，key/端口逐字节不变） |
 | docs/FAST-PATH.md | legacy 存档 | 23 条坑位表（粘贴块/端口/撤销链路） |
@@ -30,7 +30,7 @@
 | docs/REFACTOR_FINAL_REPORT.md | 验收报告 | Phase 0–10 全记录；F1–F18 缺陷与修复；测试清单 |
 | docs/STATUS.md | 实测记录 | 「证过的 vs 没证的」口径；legacy 历史证据 |
 | docs/PITFALLS.md | 坑位库 | A–I 九组共 60+ 条真机坑（Go 版 H1–H16 + 审评 I1–I7） |
-| docs/man-dialhome.md | 手册页 | 全命令表；退出码分类（0/1/2/3/10+） |
+| docs/man-OutboundAll.md | 手册页 | 全命令表；退出码分类（0/1/2/3/10+） |
 | docs/magpie-remote-provider-research.md | legacy 调研 | magpie provider 语义（隧道必须指 gateway 3425 等） |
 
 ## 2. 功能与确切行为
@@ -38,7 +38,7 @@
 ### 2.1 三角色
 - **node**（被控机）：install（凭证驱动：本地生成 host key + tunnel key → 凭证私钥 enroll 提交公钥 → manager 公钥写本机 AK → config/identity → 自启动）/ run（`sshd -D` 子进程 + 每通道独立 `ssh -R` + supervisor）/ status / stop / uninstall（只去自启，保留数据）/ logs / doctor。
 - **controller**（总控）：init（manager 密钥对，公钥需 scp 到 relay）/ list / status / anchors（有序 trail 带真实失败原因）/ shell（`-t` PTY）/ exec（参数数组 + bash stdin 脚本模式）。
-- **relay**（Linux 中继，零常驻服务）：init（建 `~/.dialhome` + helper_path 烤进 AK 行）/ credentials issue|revoke / list / inspect / ports / revoke（软删墓碑）/ purge（只收 revoked）/ migrate-legacy / relay-helper（forced command：`--port P tunnel`、`--credential C enroll`，旗标前置于动词）。
+- **relay**（Linux 中继，零常驻服务）：init（建 `~/.OutboundAll` + helper_path 烤进 AK 行）/ credentials issue|revoke / list / inspect / ports / revoke（软删墓碑）/ purge（只收 revoked）/ migrate-legacy / relay-helper（forced command：`--port P tunnel`、`--credential C enroll`，旗标前置于动词）。
 
 ### 2.2 登记协议（幂等语义）
 relay enroll → 凭证（24h、一次性、预绑定端口槽位、内嵌 manager_pubkey）→ node install 消费（用后即删）→ helper 校验（有效/未过期/未用/节点非 revoked/凭证 ID = 节点当前 ID）→ AK 原子写受限行 → registry pending→active → 节点 register 上报硬件（uuid/macs/user，只能写自己记录）。
@@ -49,10 +49,10 @@ relay enroll → 凭证（24h、一次性、预绑定端口槽位、内嵌 manag
 - 重试梯：5→10→20→40→60s（翻倍封顶 60）；≥10 次失败→3600s；**auth 失败（Permission denied）直接跳小时级**（OpenSSH 10 per-source penalty）；成功清零。
 - 开机等待：重启后 ≤10 分钟（20×30s）探 relay 再进梯；keepalive 15s×3；ConnectTimeout 10s；ExitOnForwardFailure=yes。
 - 单实例锁（Windows LockFileEx / Unix flock）+ pid 记录。
-- Windows 无窗口：`dialhomed.exe`（-H windowsgui）+ CREATE_NO_WINDOW；不经 ssh 会话树起常驻进程（job object 连坐）。
+- Windows 无窗口：`OutboundAlld.exe`（-H windowsgui）+ CREATE_NO_WINDOW；不经 ssh 会话树起常驻进程（job object 连坐）。
 
 ### 2.4 Controller 连接路径
-- anchors 有序 failover：ssh_alias（引用用户 ~/.ssh/config，从不迁移/复制）→ dialhome 锚点（ProxyJump + manager key → relay 回环 `127.0.0.1:<remote_port>` → 节点 sshd）。
+- anchors 有序 failover：ssh_alias（引用用户 ~/.ssh/config，从不迁移/复制）→ OutboundAll 锚点（ProxyJump + manager key → relay 回环 `127.0.0.1:<remote_port>` → 节点 sshd）。
 - 同机部署（via_relay 以 127.0.0.1 开头）自动跳过跳板。
 - 控制器私有 known_hosts + StrictHostKeyChecking=accept-new（节点重装换 host key 是预期）。
 - exec：命令串只作 ssh 尾参，绝不经本地 shell；bash 走 `bash -s` stdin 脚本；连接失败（rc=255 + 连接类 stderr）与远端失败分报。
@@ -109,7 +109,7 @@ init（一次性）→ credentials issue（幂等：同名复用端口对）→ 
 ## 8. Failover 行为
 
 - **客户端隧道层**：每通道独立连接 + 重试梯（见 §2.3）；auth 失败跳小时级；开机等待。
-- **controller 层**：machines.json anchors 有序探测，第一个可用者胜，trail 记录全过程；ssh_alias 与 dialhome 锚点混用。
+- **controller 层**：machines.json anchors 有序探测，第一个可用者胜，trail 记录全过程；ssh_alias 与 OutboundAll 锚点混用。
 - **relay 层**：无 HA（单机设计）；AK/registry 有备份与幂等恢复（Phase 8 实测：误删 registry 后重跑 migrate 恢复）。
 - 注意：参考实现没有「多 relay/多区域 relay failover」；「anchor」是 **controller 侧的多路径连接锚点**，不是 relay 冗余。
 
@@ -132,7 +132,7 @@ init（一次性）→ credentials issue（幂等：同名复用端口对）→ 
 ## 11. 源码树（Go 版，全部保留不动）
 
 ```
-cmd/dialhome/main.go          入口（子命令路由，~1.2k 行）
+cmd/OutboundAll/main.go          入口（子命令路由，~1.2k 行）
 internal/cli/                 node/controller/relay/autostart/service/migrate/doctor/sshd_run/hide
 internal/relay/               akfile.go（结构化 AK 读写）registry.go（registry+端口分配）helper.go（forced command）
 internal/supervisor/          ladder.go（重试梯）runner.go（通道守护）dial.go hide_*
@@ -147,4 +147,4 @@ scripts/build-matrix.sh       6 目标交叉编译 + SHA256SUMS
 - controller exec 对 `shell=bash` 走 stdin 脚本模式，其他 shell 直接尾参。
 - `node logs <channel>` 读 `logs/<channel>.log` 末尾 40 行；通道名 `sshd`/`tunnel-ssh`/`tunnel-<name>`。
 - Windows `hide_windows.go`/`hide_other.go` 构建标签分离（CREATE_NO_WINDOW 只在 win32 求值，POSIX 恒 0——审评 I 组已验证）。
-- 测试逃逸口：`DIALHOME_RELAY_DIR`/`DIALHOME_RELAY_AK`（仅测试，正常运维不碰）。
+- 测试逃逸口：`OUTBOUNDALL_RELAY_DIR`/`OUTBOUNDALL_RELAY_AK`（仅测试，正常运维不碰）。

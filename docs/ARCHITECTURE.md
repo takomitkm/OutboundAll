@@ -1,4 +1,4 @@
-# ARCHITECTURE — dialhome Go 重构设计（Phase 2 冻结稿 v1）
+# ARCHITECTURE — OutboundAll Go 重构设计（Phase 2 冻结稿 v1）
 
 > 前置阅读：`REFACTOR_BASELINE.md`（旧实现事实）、`SSH_BACKEND_MATRIX.md`（后端选型证据）。
 > 本文冻结接口与边界；与规格冲突时以规格为准。
@@ -8,33 +8,33 @@
 ```
 Node（受控机）                Relay（Linux 中继）              Controller（总控）
 ┌──────────────────┐   出站ssh   ┌────────────────┐    ssh    ┌──────────────┐
-│ dialhomed.exe     │──────────→│ 系统OpenSSH sshd │←─────────│ dialhome.exe  │
+│ OutboundAlld.exe     │──────────→│ 系统OpenSSH sshd │←─────────│ OutboundAll.exe  │
 │  ├ sshd (-D子进程) │  -R 回环  │  authorized_keys │  经回环口 │  controller.* │
 │  ├ tunnel ssh ×N  │           │  forced command  │          │  经回环登节点  │
 │  └ supervisor     │           └────────────────┘          └──────────────┘
 └──────────────────┘
 ```
 
-- **一个 Go module，一个二进制**：`cmd/dialhome`，子命令区分角色（`node / controller / relay / autostart / service / doctor / migrate`）。
-- Windows 发布两型：`dialhome.exe`（console 子系统——Controller 与交互）与 `dialhomed.exe`（`-ldflags -H=windowsgui`——Node 后台/自启入口，无窗口）；同一份代码，构建标签仅切入口与资源。Linux/macOS 单一二进制。
-- Relay **不跑常驻 dialhome 进程**：只有 (a) SSH forced-command helper（`dialhome relay-helper` 被 forced command 调起，一次一进程），(b) Controller 经 SSH 调起的一次性 `dialhome relay <sub>` 命令。
+- **一个 Go module，一个二进制**：`cmd/OutboundAll`，子命令区分角色（`node / controller / relay / autostart / service / doctor / migrate`）。
+- Windows 发布两型：`OutboundAll.exe`（console 子系统——Controller 与交互）与 `OutboundAlld.exe`（`-ldflags -H=windowsgui`——Node 后台/自启入口，无窗口）；同一份代码，构建标签仅切入口与资源。Linux/macOS 单一二进制。
+- Relay **不跑常驻 OutboundAll 进程**：只有 (a) SSH forced-command helper（`OutboundAll relay-helper` 被 forced command 调起，一次一进程），(b) Controller 经 SSH 调起的一次性 `OutboundAll relay <sub>` 命令。
 
 ## 2. 数据布局（全部用户级，Go path 库生成）
 
 | 角色 | 根路径 | 内容 |
 |---|---|---|
-| Node Windows | `%LOCALAPPDATA%\dialhome\` | `config.json` `identity.json` `keys/`（tunnel 私钥+host key）`openssh\` `logs\` `state\` |
-| Node Linux | `$XDG_DATA_HOME/dialhome`（默认 `~/.local/share/dialhome`） | 同上 |
-| Node macOS | `~/Library/Application Support/dialhome` | 同上 |
-| Controller | `~/.config/dialhome/`（Win: `%APPDATA%\dialhome\`） | `machines.json`（节点注册表+多锚点）`keys/`（管理私钥）`known_hosts` |
-| Relay | `~/.dialhome/` | `registry.json`（节点登记）`credentials.json`（登记凭证）`authorized_keys`（独立文件，被系统 AK include 或由 helper 直接维护系统 AK——见 PROTOCOL §3）`logs/` |
+| Node Windows | `%LOCALAPPDATA%\OutboundAll\` | `config.json` `identity.json` `keys/`（tunnel 私钥+host key）`openssh\` `logs\` `state\` |
+| Node Linux | `$XDG_DATA_HOME/OutboundAll`（默认 `~/.local/share/OutboundAll`） | 同上 |
+| Node macOS | `~/Library/Application Support/OutboundAll` | 同上 |
+| Controller | `~/.config/OutboundAll/`（Win: `%APPDATA%\OutboundAll\`） | `machines.json`（节点注册表+多锚点）`keys/`（管理私钥）`known_hosts` |
+| Relay | `~/.OutboundAll/` | `registry.json`（节点登记）`credentials.json`（登记凭证）`authorized_keys`（独立文件，被系统 AK include 或由 helper 直接维护系统 AK——见 PROTOCOL §3）`logs/` |
 
 **删除旧实现概念**：D:\ 根脚本、C: 双份备份、PS 生成器、bootstrap-names.json（IP 名）——fp 身份直接来自节点本机生成。
 
 ## 3. 包结构（规格 §1.3 落地）
 
 ```
-cmd/dialhome/main.go        子命令路由
+cmd/OutboundAll/main.go        子命令路由
 internal/config/            JSON 读写+版本迁移+校验
 internal/identity/          三平台硬件指纹（IdentityProvider 接口）
 internal/crypto/            ed25519 keygen、AK 行格式化、authorized_keys 解析/原子写
@@ -60,7 +60,7 @@ internal/logging/           slog + 轮转 + 脱敏（密钥/token/私钥体）
 
 ### 4.2 Supervisor（规格 §3.4 逐条）
 - `--mode temporary`：install 进程**前台**跑 supervisor（信号处理：SIGINT/TERM → 关闭 sshd+全部 ssh 子进程，等待退出，不留孤儿）；Ctrl+C 即全链拆除。
-- `--mode persistent`：install 写配置后退出；由 `autostart` 入口在登录时拉起 `dialhomed node run`（后台常驻）；supervisor 管理全部子进程，崩溃自动重启对应子进程；Windows 后台为 windowsgui 型（无窗口，日志进文件）。
+- `--mode persistent`：install 写配置后退出；由 `autostart` 入口在登录时拉起 `OutboundAlld node run`（后台常驻）；supervisor 管理全部子进程，崩溃自动重启对应子进程；Windows 后台为 windowsgui 型（无窗口，日志进文件）。
 - 状态机：`boot-wait`(≤10min 探 relay) → `backoff`(5/10/20/40/60s，≥5 次 60s，≥10 次 3600s，成功清零) → `connected`；keepalive 15s×3；单连接超时 10s；ExitOnForwardFailure 恒开。
 - 单实例：配置文件锁（Windows: LockFileEx；Unix: flock）+ pid 记录；第二个 supervisor 检测到锁即退出。
 
@@ -70,7 +70,7 @@ internal/logging/           slog + 轮转 + 脱敏（密钥/token/私钥体）
 - 多锚点：按 `machines.json` anchors 顺序探测（本地回环口 → SSH 健康命令），第一个可用者胜；兼容既有 `~/.ssh/config` 别名（不迁移用户 SSH 配置，只引用）。
 
 ### 4.4 Relay helper（forced command）
-节点 key 的 `command=` 指向 `dialhome relay-helper --port <p>`，按 `$SSH_ORIGINAL_COMMAND` 分派：
+节点 key 的 `command=` 指向 `OutboundAll relay-helper --port <p>`，按 `$SSH_ORIGINAL_COMMAND` 分派：
 - `check` → JSON 探活（原 checker 语义）
 - `register {json}` → 校验调用者身份（由 port 反查 registry）后写入该节点 hardware 记录
 - `get-openssh` / `get-config` → 白名单文件下发

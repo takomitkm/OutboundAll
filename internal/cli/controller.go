@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/takomitkm/dialhome/internal/controller"
-	"github.com/takomitkm/dialhome/internal/crypto"
-	"github.com/takomitkm/dialhome/internal/errs"
-	"github.com/takomitkm/dialhome/internal/platform"
+	"github.com/takomitkm/outboundall/internal/controller"
+	"github.com/takomitkm/outboundall/internal/crypto"
+	"github.com/takomitkm/outboundall/internal/errs"
+	"github.com/takomitkm/outboundall/internal/platform"
 )
 
 // controllerPaths resolves the controller config layout.
@@ -45,7 +45,7 @@ func runControllerImpl(args []string) error {
 		if _, err := os.Stat(keyPath); err == nil {
 			fmt.Println("manager key already present: " + keyPath)
 		} else {
-			kp, kerr := crypto.Generate("dialhome-manager")
+			kp, kerr := crypto.Generate("OutboundAll-manager")
 			if kerr != nil {
 				return kerr
 			}
@@ -64,7 +64,7 @@ func runControllerImpl(args []string) error {
 			}
 			fmt.Println("MANAGER-KEY  = " + keyPath)
 			fmt.Println("MANAGER-PUB  = " + pubPath)
-			fmt.Println("copy manager.pub to the relay as ~/.dialhome/manager.pub (scp)")
+			fmt.Println("copy manager.pub to the relay as ~/.OutboundAll/manager.pub (scp)")
 		}
 		return nil
 
@@ -178,7 +178,7 @@ func anchorKind(a controller.Anchor) string {
 	case a.Alias != "":
 		return "ssh-alias"
 	case a.Node != "":
-		return "dialhome"
+		return "OutboundAll"
 	default:
 		return "local-port"
 	}
@@ -203,7 +203,7 @@ func verdict(t controller.ProbeResult) string {
 
 // anchorArgs maps an anchor to the ssh argument vector addressing it.
 // ssh-alias anchors reference the user's own ~/.ssh/config (never migrated).
-// dialhome anchors ProxyJump through the relay and land on the node loopback port
+// OutboundAll anchors ProxyJump through the relay and land on the node loopback port
 // with the controller manager key (the only key allowed a node shell).
 func anchorArgs(a controller.Anchor) []string {
 	if a.Alias != "" {

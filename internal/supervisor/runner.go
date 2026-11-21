@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/config"
-	"github.com/takomitkm/dialhome/internal/lockfile"
-	"github.com/takomitkm/dialhome/internal/logging"
-	"github.com/takomitkm/dialhome/internal/platform"
+	"github.com/takomitkm/outboundall/internal/config"
+	"github.com/takomitkm/outboundall/internal/lockfile"
+	"github.com/takomitkm/outboundall/internal/logging"
+	"github.com/takomitkm/outboundall/internal/platform"
 )
 
 // Tunnel describes one reverse-forward channel as the ssh child must see it.

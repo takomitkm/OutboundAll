@@ -22,8 +22,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/lockfile"
-	"github.com/takomitkm/dialhome/internal/supervisor"
+	"github.com/takomitkm/outboundall/internal/lockfile"
+	"github.com/takomitkm/outboundall/internal/supervisor"
 )
 
 // StopGracePeriod is how long a SIGTERM'd sing-box gets before SIGKILL.

@@ -1,4 +1,4 @@
-# dialhome
+# OutboundAll
 
 把**没有公网 IP、不能开入站端口、不给管理员**的机器拨回家。
 
@@ -21,7 +21,7 @@ Go 单二进制，三个角色同仓：`node` / `controller` / `relay`。
  │ rootless sshd  127.0.0.1:19xxx│◄────┤ 127.0.0.1:<node的SSH端口>      │── controller ──► 你
  │ 任意本地服务   127.0.0.1:xxxx  │◄────┤ 127.0.0.1:<node的APP端口>      │
  │                              │  -R  │                              │
- │ dialhome node run ──出站──────┼─────►│ sshd（唯一对外端口）           │
+ │ OutboundAll node run ──出站──────┼─────►│ sshd（唯一对外端口）           │
  └──────────────────────────────┘      └──────────────────────────────┘
 ```
 
@@ -44,17 +44,17 @@ Go 单二进制，三个角色同仓：`node` / `controller` / `relay`。
 ### 1) relay：一次性初始化（在 relay 上，普通用户即可）
 
 ```bash
-dialhome relay init                      # 建 ~/.dialhome，管理系统 authorized_keys
-dialhome relay init --advertise 127.0.0.1:22   # 同机部署：节点该拨的本机 sshd 端口
+OutboundAll relay init                      # 建 ~/.OutboundAll，管理系统 authorized_keys
+OutboundAll relay init --advertise 127.0.0.1:22   # 同机部署：节点该拨的本机 sshd 端口
 ```
 
-> relay 数据目录**恒定** `~/.dialhome`。节点侧 `DIALHOME_DATA_DIR` 覆盖只影响 node/controller。
+> relay 数据目录**恒定** `~/.OutboundAll`。节点侧 `OUTBOUNDALL_DATA_DIR` 覆盖只影响 node/controller。
 
 ### 2) relay：签发一张一次性凭证
 
 ```bash
 # 控制器公钥先放到 relay（同机则直接指定路径）
-dialhome relay credentials issue my-node --manager-pub ~/.dialhome/manager.pub
+OutboundAll relay credentials issue my-node --manager-pub ~/.OutboundAll/manager.pub
 # 输出 CREDENTIAL-B64 = ... ；把它（或解码后的 JSON 文件）交给节点
 ```
 
@@ -64,10 +64,10 @@ dialhome relay credentials issue my-node --manager-pub ~/.dialhome/manager.pub
 
 ```powershell
 # Windows（把凭证 json 放好；--openssh-zip 可指定本地固定版本包）
-dialhome node install --mode persistent --credential C:\path\cred.json
+OutboundAll node install --mode persistent --credential C:\path\cred.json
 
 # Linux
-dialhome node install --mode persistent --credential /path/cred.json
+OutboundAll node install --mode persistent --credential /path/cred.json
 ```
 
 安装会：本地生成 host key + tunnel key（**私钥不出机**）→ 用凭证私钥向 relay 提交 tunnel 公钥
@@ -76,8 +76,8 @@ dialhome node install --mode persistent --credential /path/cred.json
 ### 4) 节点：跑起来
 
 ```powershell
-dialhome node run      # 前台：rootless sshd 子进程 + 多通道 supervisor + 实例锁
-dialhome node status   # 通道与 relay 监听状态
+OutboundAll node run      # 前台：rootless sshd 子进程 + 多通道 supervisor + 实例锁
+OutboundAll node status   # 通道与 relay 监听状态
 ```
 
 `--mode persistent` 下登录即自启；`temporary` 不写任何自启动项。
@@ -87,15 +87,15 @@ dialhome node status   # 通道与 relay 监听状态
 ### 5) 控制器：连进去
 
 ```bash
-dialhome controller init          # 生成 manager 密钥对（私钥留本机；公钥发到 relay 的 manager.pub）
-dialhome controller list          # 已注册机器
-dialhome controller anchors my-node   # 逐条打印锚点探测结果（失败给真实原因）
-dialhome controller exec my-node 'hostname && whoami'
-dialhome controller shell my-node     # 交互式 PTY
+OutboundAll controller init          # 生成 manager 密钥对（私钥留本机；公钥发到 relay 的 manager.pub）
+OutboundAll controller list          # 已注册机器
+OutboundAll controller anchors my-node   # 逐条打印锚点探测结果（失败给真实原因）
+OutboundAll controller exec my-node 'hostname && whoami'
+OutboundAll controller shell my-node     # 交互式 PTY
 ```
 
 `machines.json` 支持两类锚点：你**自己的 `~/.ssh/config` 别名**（从不迁移），
-或 dialhome 锚点（经 relay 的 ProxyJump + manager key 落节点回环口）。
+或 OutboundAll 锚点（经 relay 的 ProxyJump + manager key 落节点回环口）。
 
 **真机验收**（relay 102 / Debian 13）：`controller exec e2e-node 'hostname && whoami'` → `debian-h61` / `user`。
 
@@ -114,16 +114,16 @@ dialhome controller shell my-node     # 交互式 PTY
 ## 命令总览
 
 ```
-dialhome node install|run|status|stop|uninstall|logs
-dialhome controller init|list|status|anchors|shell|exec
-dialhome relay init|list|inspect|revoke|purge|ports|enroll|migrate-legacy|credentials issue|revoke
-dialhome relay-helper --port <p> tunnel | --credential <id> enroll    # 内部 forced command
-dialhome autostart install|uninstall|status            # 用户级，无管理员
-dialhome service install|uninstall|status --scope system   # 可选，需 root，永不默认
-dialhome migrate --from-legacy [--legacy-dir DIR]
-dialhome doctor
-dialhome keygen --out FILE [--comment TEXT]
-dialhome version
+OutboundAll node install|run|status|stop|uninstall|logs
+OutboundAll controller init|list|status|anchors|shell|exec
+OutboundAll relay init|list|inspect|revoke|purge|ports|enroll|migrate-legacy|credentials issue|revoke
+OutboundAll relay-helper --port <p> tunnel | --credential <id> enroll    # 内部 forced command
+OutboundAll autostart install|uninstall|status            # 用户级，无管理员
+OutboundAll service install|uninstall|status --scope system   # 可选，需 root，永不默认
+OutboundAll migrate --from-legacy [--legacy-dir DIR]
+OutboundAll doctor
+OutboundAll keygen --out FILE [--comment TEXT]
+OutboundAll version
 ```
 
 退出码分类见 [internal/errs/errs.go](internal/errs/errs.go)：`0` 成功、`1` 一般失败、`2` 用法错误、`3` 未实现、`10+` 领域码（doctor 用）。
@@ -136,7 +136,7 @@ dialhome version
 `magpie-node-*` / `magpie-tunnel-node-*` 行 + `~/.magpie-connector/machines.json`。
 
 ```bash
-dialhome relay migrate-legacy ~/.magpie-connector     # 或 dialhome migrate --from-legacy
+OutboundAll relay migrate-legacy ~/.magpie-connector     # 或 OutboundAll migrate --from-legacy
 ```
 
 迁移**只改 forced command**，key body 与端口**逐字节不变**，先写备份，生产隧道零中断。
@@ -158,7 +158,7 @@ dialhome relay migrate-legacy ~/.magpie-connector     # 或 dialhome migrate --f
 | 理解设计/安全边界 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) |
 | 看协议/配置/端口 | [docs/PROTOCOL.md](docs/PROTOCOL.md) · [docs/CONFIG_SCHEMA.md](docs/CONFIG_SCHEMA.md) · [docs/PORTS.md](docs/PORTS.md) |
 | 排障 | [docs/PITFALLS.md](docs/PITFALLS.md) · [docs/SSH_BACKEND_MATRIX.md](docs/SSH_BACKEND_MATRIX.md) |
-| 命令手册 | [docs/man-dialhome.md](docs/man-dialhome.md) |
+| 命令手册 | [docs/man-OutboundAll.md](docs/man-OutboundAll.md) |
 | 看验收证据 | [docs/REFACTOR_FINAL_REPORT.md](docs/REFACTOR_FINAL_REPORT.md) · [docs/PHASE4_ACCEPTANCE.md](docs/PHASE4_ACCEPTANCE.md) |
 
 全部文档索引：[docs/README.md](docs/README.md)。
@@ -169,7 +169,7 @@ dialhome relay migrate-legacy ~/.magpie-connector     # 或 dialhome migrate --f
 
 ```bash
 # 本机
-go build ./cmd/dialhome
+go build ./cmd/OutboundAll
 
 # 全平台 + 校验和（见 scripts/build-matrix.sh）
 ./scripts/build-matrix.sh            # windows/linux/darwin × amd64/arm64 -> dist/ + SHA256SUMS
@@ -182,8 +182,8 @@ CI：[.github/workflows/ci.yml](.github/workflows/ci.yml)（vet + test + 跨平�
 ## 仓库结构
 
 ```
-dialhome/
-  cmd/dialhome/         单二进制入口（三角色子命令）
+OutboundAll/
+  cmd/OutboundAll/         单二进制入口（三角色子命令）
   internal/
     cli/                node / controller / relay / autostart / service / migrate / doctor
     relay/              authorized_keys 结构化读写 + registry + forced-command helper

@@ -1,4 +1,4 @@
-# FINAL REPORT — dialhome 能力在 Headscale + DERP + sing-box 上的重实现
+# FINAL REPORT — OutboundAll 能力在 Headscale + DERP + sing-box 上的重实现
 
 > 基线 `main @ ecec22b`（参考实现冻结）→ 终点 `phase5` 分支。
 > 规格正本 `PLAN.md`；特性追踪 `analysis/FEATURE_TRACEABILITY.md`；台账 `IMPLEMENTATION_PROGRESS.md`。
@@ -18,7 +18,7 @@
 | 服务转发 | ssh -R permitlisten 逐口 | sing-box route rules（显式 allow + reject-all） | G1 gates |
 | 管理面 | registry.json + AK 文件 | hs-controller（JSON store+锁+原子写+备份） | phase3/8 |
 | 审计 | 墓碑+AK 备份 | audit_events（上限 10k）+ 管理操作全记录 | phase8 |
-| 运维 CLI | dialhome controller/relay 子命令 | hs-admin（API 客户端）+ hs-controller CLI | phase5 e2e |
+| 运维 CLI | OutboundAll controller/relay 子命令 | hs-admin（API 客户端）+ hs-controller CLI | phase5 e2e |
 | DERP 回退 | （无——relay 是唯一入口） | headscale 内嵌 DERP + STUN | 部署产物 |
 
 ## 2. CI 实证总览（全部 run 在 GitHub Actions）

@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/lockfile"
+	"github.com/takomitkm/outboundall/internal/lockfile"
 )
 
 // Store is the management-plane state: nodes, invitations, audit events.

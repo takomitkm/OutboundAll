@@ -92,14 +92,14 @@
 | H2 | `ssh.exe -y -f key` 报 `ERROR: Access is denied.` | `ssh.exe` **没有** `-y` 选项，它把 `-y` 当连接参数 | 公钥渲染用 `ssh-keygen -y -f key`（本项目 `pubOf`） |
 | H3 | Linux 上 `fork/exec /usr/sbin/ssh-keygen: no such file` | 从 `sshd` 路径推导 `ssh-keygen` 只在便携包里成立；系统包的 keygen 在 `/usr/bin` | 非 Windows 固定 `/usr/bin/ssh-keygen`（回退 `/bin`） |
 | H4 | `ssh -i K -p P user@host -o BatchMode=yes echo marker` 返回 255，marker 没执行 | ssh 把**第一个非选项参数之后**的一切当远程命令；`-o` 与 `echo` 被吞成远端命令 | 连接选项与目标必须在远程命令**之前**：`ssh [opts] user@host echo marker`；回归测试 `TestBuildProbeArgsOrder` |
-| H5 | controller 报 `REMOTE HOST IDENTIFICATION HAS CHANGED`，节点明明刚装好 | 节点每次 install 重新生成 host key，而 `127.0.0.1` 的 known_hosts 是上一台机器的 | dialhome 锚点用**控制器私有** known_hosts + `StrictHostKeyChecking=accept-new`，不污染用户 `~/.ssh/known_hosts` |
-| H6 | relay 上 `relay credentials issue` 成功，但 helper 报 `unknown credential` | relay 子命令尊重了 `DIALHOME_DATA_DIR` 覆盖，而 helper 在 sshd 下运行**不继承**该变量，两者读了不同 registry | relay/relay-helper 数据目录**恒定** `~/.dialhome`（`relayDataDir()`），只有显式 `--base` 可覆盖 |
+| H5 | controller 报 `REMOTE HOST IDENTIFICATION HAS CHANGED`，节点明明刚装好 | 节点每次 install 重新生成 host key，而 `127.0.0.1` 的 known_hosts 是上一台机器的 | OutboundAll 锚点用**控制器私有** known_hosts + `StrictHostKeyChecking=accept-new`，不污染用户 `~/.ssh/known_hosts` |
+| H6 | relay 上 `relay credentials issue` 成功，但 helper 报 `unknown credential` | relay 子命令尊重了 `OUTBOUNDALL_DATA_DIR` 覆盖，而 helper 在 sshd 下运行**不继承**该变量，两者读了不同 registry | relay/relay-helper 数据目录**恒定** `~/.OutboundAll`（`relayDataDir()`），只有显式 `--base` 可覆盖 |
 | H7 | 凭证里 `relay_address` 是公网地址，同机节点连不上 | `advertise` 默认公网口，但 relay 本机 sshd 实际监听 22（18322 是路由器转发口） | `relay init --advertise 127.0.0.1:22` 用于同机部署；`relay_port` 从 advertise 字符串推导 |
 | H8 | Go 里 `if ok, v := f(); ok { ... }` 之后用 `v` 报 undefined | 简短变量声明的作用域是 **if 语句块内**（含 else），块外不可见 | 先调用后判断：`ok, v := f(); if ok { ... }` |
 | H9 | 幂等命令（`migrate-legacy`）每跑一次 AK 就多一个空行 | `Render()` 会给每个 Entry（含末尾空行）追加 `\n`，无条件写盘就累积 | 无改写时**跳过写盘**；回归测试 `TestMigrateLegacyIdempotentKeepsAKByteForByte` |
 | H10 | forced command 里 `flag` 解析不到值（如 `enroll` 报 unknown credential） | Go `flag` 包**遇到第一个位置参数即停止解析** | 旗标必须在位置动词之前：`relay-helper --credential ID enroll` |
 | H11 | 部署新二进制到正在运行的目标路径，scp 成功但远端时间戳/哈希不变 | 目标文件被正在运行的进程占用/替换被延迟 | 先 `pkill` 或 scp 到 `/tmp` 再 `install -m 755 -o user -g user`；部署后用 `sha256sum` 双向比对 |
-| H12 | `node run` 报 `open .../config.json: no such file`（明明 install 过） | `node run` 与 `node install` 用了不同的 `DIALHOME_DATA_DIR` | 同一角色命令必须用同一数据目录；E2E 脚本里显式对 controller 命令设同一 `CTRL_DIR` |
+| H12 | `node run` 报 `open .../config.json: no such file`（明明 install 过） | `node run` 与 `node install` 用了不同的 `OUTBOUNDALL_DATA_DIR` | 同一角色命令必须用同一数据目录；E2E 脚本里显式对 controller 命令设同一 `CTRL_DIR` |
 | H13 | Windows agent 沙箱里 `reg add HKCU\...\Run` 报 `Access is denied` | agent 工具的子进程继承**受限令牌**，不是产品缺陷 | 用户级注册表写入需在真实桌面会话验证；文档已标"需真实桌面复验" |
 | H14 | Windows 上 `os.Rename` 到已存在的目录静默失败 | Windows 不允许 rename 覆盖目录 | 目标目录先 `os.RemoveAll` 再 `os.Rename` |
 | H15 | `os.Chmod(0600)` 在 NTFS 上是 no-op，密钥仍宽 ACL | NTFS 用 ACL 不用 mode bits | 用 `icacls /inheritance:r /grant:<user>:F`（本项目 `platform.HardenFile`） |
@@ -112,7 +112,7 @@
 | # | 症状 | 根因 | 修法 |
 |---|---|---|---|
 | I1 | **P1 安全**：为节点签凭证→不消费→`relay revoke`→用旧凭证 enroll，节点被重新置为 active | `relayRevoke` 只删节点 AK 行，未清凭证；`EnrollCommand` 不检查 node.State、不检查凭证是否仍是节点当前 ID，直接 `State="active"` | 双重防线：revoke 删除该节点全部凭证记录 + AK 行并清空 `CredentialID`；helper 拒绝 `revoked` 节点与过期凭证 ID。**真实 SSH 负向测试**（临时 rootless sshd，replay 旧凭证行）两道均 DENY |
-| I2 | **P2**：helper 装在 `/home/user/my tools/dialhome`，forced command 不执行 | `%q` 只做了 authorized_keys 选项值转义，可执行路径没做 POSIX shell 参数引用，登录 shell 把路径拆成多词 | 分离两层转义：`ShellQuote()`（单引号 + `'\''`）包住路径，`AKOptionValue()`（`\"`/`\\`）包住整条命令；CR/LF/NUL 直接拒绝。测试覆盖空格、单双引号、反斜杠、`$(id)`、反引号、分号 |
+| I2 | **P2**：helper 装在 `/home/user/my tools/OutboundAll`，forced command 不执行 | `%q` 只做了 authorized_keys 选项值转义，可执行路径没做 POSIX shell 参数引用，登录 shell 把路径拆成多词 | 分离两层转义：`ShellQuote()`（单引号 + `'\''`）包住路径，`AKOptionValue()`（`\"`/`\\`）包住整条命令；CR/LF/NUL 直接拒绝。测试覆盖空格、单双引号、反斜杠、`$(id)`、反引号、分号 |
 | I3 | **P2**：`0.0.0.0:13440` / `[::]:13440` 已占用，`AllocatePair` 仍把该端口分给新节点 | `livePorts()` / `LivePortsFromSS` 只匹配 `127.0.0.1:` 前缀 | 解析 `ss -ltn` 本地地址列的**所有**形式（IPv4/通配/`[::]`/`*:`/`[::1]`），取最后冒号后的数字端口；拒绝把 Recv-Q/Send-Q 数字列误判为端口。单测覆盖 6 种写法 |
 | I4 | **P2**：`relay purge` 后凭证公钥仍留在系统 authorized_keys | purge 只删 registry 记录，没同步 `RemoveCredential` + 写盘 | purge 接收 `akPath`，删除凭证记录时一并删 AK 行并原子写回；其他节点/凭证行保持不变 |
 | I5 | **P2**：通用部署必须改代码里的 `relay_user: "user"` 和 `10.101.54.192` | 凭证签发硬编码账户名，地址虽有 `--advertise` 但无账户配置 | `relay init --relay-user USER` 存入 registry；`advertiseUser()` 依次取配置 / `$USER` / `$USERNAME` / 兼容默认；地址默认仍在 `--advertise` 帮助里写明并可由 co-located 部署覆盖 |

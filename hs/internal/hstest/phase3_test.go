@@ -273,8 +273,8 @@ log:
 	nodeEnv := []string{
 		"HOME=" + nodeHome,
 		"XDG_CONFIG_HOME=" + nodeHome + "/.config",
-		"DIALHOME_HS_SINGBOX=" + sbBin,
-		"DIALHOME_HS_TEST_ALLOW_HTTP=1", // CI: plaintext headscale on localhost
+		"OUTBOUNDALL_HS_SINGBOX=" + sbBin,
+		"OUTBOUNDALL_HS_TEST_ALLOW_HTTP=1", // CI: plaintext headscale on localhost
 	}
 	out, code = runBin(t, nodeEnv, nodeBin, "enroll",
 		"--code", inviteCode,

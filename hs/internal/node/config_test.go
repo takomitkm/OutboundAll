@@ -17,7 +17,7 @@ func validConfig() *Config {
 		Hostname:      "win-lab",
 		SSHServer:     SSHServer{Enabled: true, DisableForwarding: true},
 		Forwarding:    false,
-		StateDir:      `C:\Users\u\AppData\Local\Dialhome\state`,
+		StateDir:      `C:\Users\u\AppData\Local\OutboundAll\state`,
 	}
 }
 

@@ -1,4 +1,4 @@
-# OPERATIONS — dialhome-hs 日常运维（VPS 139.9.101.203, 2c/1G）
+# OPERATIONS — OutboundAll-hs 日常运维（VPS 139.9.101.203, 2c/1G）
 
 > 纪律：这台机 2c/1G，**不要**在上跑构建/测试/并行压测；一切二进制由 GH Actions
 > build-matrix 产出后 scp 上去。
@@ -6,8 +6,8 @@
 ## 1. 部署 / 升级（幂等）
 
 ```bash
-# 本地（dialhome-server 包 = CI artifact 或 GitHub Release 附件，解包即得）：
-tar xzf dialhome-server-linux-amd64.tar.gz -C /tmp/srv
+# 本地（OutboundAll-server 包 = CI artifact 或 GitHub Release 附件，解包即得）：
+tar xzf OutboundAll-server-linux-amd64.tar.gz -C /tmp/srv
 scp /tmp/srv/hs-controller /tmp/srv/hs-deploycheck /tmp/srv/derper root@139.9.101.203:/usr/local/bin/
 scp /tmp/srv/deploy.sh root@139.9.101.203:/root/
 ssh root@139.9.101.203 'bash /root/deploy.sh <version-tag>'
@@ -36,9 +36,9 @@ ssh root@139.9.101.203 hs-controller token-rotate   # 换管理 token（须重�
 
 ```bash
 # 每周（或改前手动）：
-ssh root@139.9.101.203 'tar czf /root/dialhome-hs-backup-$(date +%F).tgz \
-  /etc/headscale /var/lib/headscale/db.sqlite /var/lib/dialhome-hs/registry.json \
-  /var/lib/dialhome-hs/admin-token'
+ssh root@139.9.101.203 'tar czf /root/OutboundAll-hs-backup-$(date +%F).tgz \
+  /etc/headscale /var/lib/headscale/db.sqlite /var/lib/OutboundAll-hs/registry.json \
+  /var/lib/OutboundAll-hs/admin-token'
 # 恢复：解包 → systemctl restart headscale hs-controller
 ```
 
@@ -65,11 +65,11 @@ ssh root@139.9.101.203 'tar czf /root/dialhome-hs-backup-$(date +%F).tgz \
 ## 6. DERP 证书轮换（ADR-007 D4，替代旧 Caddy TLS 升级路径）
 
 derper `-certmode=manual -hostname=<IP>` 首次启动自动生成自签 IP 证书
-（ECDSA P-256，SAN=IP，1 年期，存 `/var/lib/dialhome-derp/`）。轮换：
+（ECDSA P-256，SAN=IP，1 年期，存 `/var/lib/OutboundAll-derp/`）。轮换：
 
 ```bash
-systemctl stop dialhome-derp
-rm /var/lib/dialhome-derp/139.9.101.203.{crt,key}   # 或等 1 年自然过期后重跑
+systemctl stop OutboundAll-derp
+rm /var/lib/OutboundAll-derp/139.9.101.203.{crt,key}   # 或等 1 年自然过期后重跑
 bash /usr/local/bin/deploy.sh <ver>                  # 重启 derper→重算指纹→重写 map→重启 headscale
 ```
 

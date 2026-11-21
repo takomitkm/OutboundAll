@@ -1,9 +1,9 @@
 // layout.go defines the user-level directory layout for hs-node and creates
 // it with hardened ACLs (no admin, no system locations).
 //
-//	Windows: %LOCALAPPDATA%\Dialhome\{bin,config,state,logs,tmp}
-//	Linux:   $XDG_DATA_HOME/dialhome-hs/{...}   (default ~/.local/share)
-//	darwin:  ~/Library/Application Support/dialhome-hs/{...}
+//	Windows: %LOCALAPPDATA%\OutboundAll\{bin,config,state,logs,tmp}
+//	Linux:   $XDG_DATA_HOME/OutboundAll-hs/{...}   (default ~/.local/share)
+//	darwin:  ~/Library/Application Support/OutboundAll-hs/{...}
 package node
 
 import (
@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/takomitkm/dialhome/internal/platform"
+	"github.com/takomitkm/outboundall/internal/platform"
 )
 
 // Layout holds the resolved absolute paths for one node installation.
@@ -31,17 +31,17 @@ func DefaultLayout() (Layout, error) {
 	switch runtime.GOOS {
 	case "windows":
 		root, err = localAppData()
-		root = filepath.Join(root, "Dialhome")
+		root = filepath.Join(root, "OutboundAll")
 	case "darwin":
 		home, e := os.UserHomeDir()
 		if e != nil {
 			return Layout{}, e
 		}
-		root = filepath.Join(home, "Library", "Application Support", "dialhome-hs")
+		root = filepath.Join(home, "Library", "Application Support", "OutboundAll-hs")
 	default:
 		root, err = os.UserConfigDir() // XDG_DATA_HOME is data; config dir fits our writable state
 		if err == nil {
-			root = filepath.Join(root, "dialhome-hs")
+			root = filepath.Join(root, "OutboundAll-hs")
 		}
 	}
 	if err != nil {

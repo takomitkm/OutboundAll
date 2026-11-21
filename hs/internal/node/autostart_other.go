@@ -115,7 +115,7 @@ func installDarwinAgent(hsNodeBin, logDir string) (string, error) {
 	if err := os.MkdirAll(agents, 0o755); err != nil {
 		return "", err
 	}
-	plist := filepath.Join(agents, "net.dialhome.hs-node.plist")
+	plist := filepath.Join(agents, "net.OutboundAll.hs-node.plist")
 	if err := os.WriteFile(plist, []byte(DarwinPlist(hsNodeBin, logDir)), 0o644); err != nil {
 		return "", err
 	}
@@ -123,7 +123,7 @@ func installDarwinAgent(hsNodeBin, logDir string) (string, error) {
 }
 
 func removeDarwinAgent() (string, error) {
-	plist := userHome("Library/LaunchAgents/net.dialhome.hs-node.plist")
+	plist := userHome("Library/LaunchAgents/net.OutboundAll.hs-node.plist")
 	if err := os.Remove(plist); err != nil && !os.IsNotExist(err) {
 		return "", err
 	}

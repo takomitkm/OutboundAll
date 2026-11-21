@@ -4,7 +4,7 @@
 
 ## Context
 
-参考实现的「anchor」= **controller 侧多路径连接锚点**（用户自己的 ssh_alias + dialhome 经 relay
+参考实现的「anchor」= **controller 侧多路径连接锚点**（用户自己的 ssh_alias + OutboundAll 经 relay
 路径，按序 failover）——不是 relay 冗余、不是多区域 DERP。源规格 §7 要求：先确定 anchor 到底是
 什么，再决定要不要自造 Anchor Manager；不要实现原生已保证的 failover。
 

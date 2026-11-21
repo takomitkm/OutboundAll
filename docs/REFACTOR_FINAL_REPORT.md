@@ -1,6 +1,6 @@
-# dialhome Go 全面重构 — 最终验收报告
+# OutboundAll Go 全面重构 — 最终验收报告
 
-> 分支：`go-refactor`　|　规格：《dialhome 全面重构执行规格：Go / Cross-platform》
+> 分支：`go-refactor`　|　规格：《OutboundAll 全面重构执行规格：Go / Cross-platform》
 > 覆盖：Phase 0–10　|　证据口径：所有结论均附实测输出/测试名；无法验证的平台如实标 **UNVERIFIED**。
 > 最后更新：2026-11-15
 
@@ -13,7 +13,7 @@
 | P0 | 仓库全量审计基线 | ✅ | `docs/REFACTOR_BASELINE.md`（含 WCIS 无 UAC SOP 事实） |
 | P1 | 三平台 SSH 后端矩阵 | ✅ Linux/Win；⚠️ macOS UNVERIFIED | `docs/SSH_BACKEND_MATRIX.md` |
 | P2 | 设计冻结 | ✅ | `ARCHITECTURE / SECURITY_MODEL / PROTOCOL / CONFIG_SCHEMA` |
-| P3 | Go 框架（单二进制三角色） | ✅ | `cmd/dialhome` + `internal/*` 分包 |
+| P3 | Go 框架（单二进制三角色） | ✅ | `cmd/OutboundAll` + `internal/*` 分包 |
 | P4 | Relay 安全核心 | ✅ | `docs/PHASE4_ACCEPTANCE.md`（**N1–N10 全绿**） |
 | P5 | Node | ✅ | install/run/status/stop/uninstall/logs；Win+Linux 真机 |
 | P6 | Controller | ✅ | 多锚点 failover；`school-guest` 校园链路实测 OK |
@@ -67,14 +67,14 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 | F1 | ladder 时长单位混用 ns 与秒 → 退避变 0 | 统一秒制重写 |
 | F2 | AK 行带 options 前缀时 `Parse` 失败 | 扫描字段定位 `ssh-ed25519` 并校验 blob 前缀 |
 | F3 | forced command 里 flag 在位置动词之后 → Go flag 包不解析 | 改为 `relay-helper --port P tunnel`（flag 先） |
-| F4 | relay DataDir 用 `%APPDATA%` 语义 | 恒定 `~/.dialhome`（helper 不继承 shell 的 `DIALHOME_DATA_DIR`） |
-| F5 | root 部署把 `~/.dialhome` 变成 root 属主 | `chown -R user:user`（文档注明） |
+| F4 | relay DataDir 用 `%APPDATA%` 语义 | 恒定 `~/.OutboundAll`（helper 不继承 shell 的 `OUTBOUNDALL_DATA_DIR`） |
+| F5 | root 部署把 `~/.OutboundAll` 变成 root 属主 | `chown -R user:user`（文档注明） |
 | F6 | PowerShell `Expand-Archive` 从无控制台父进程 spawn 时 `Write-Progress` 报 Access denied 且 **exit 0 但不解压** | 改 stdlib `archive/zip`（带 zip-slip 防护） |
 | F7 | `ssh.exe` 没有 `-y`（把 flag 当连接参数） | 公钥渲染改 `ssh-keygen -y` |
 | F8 | unix `ssh-keygen` 路径推导错误（/usr/sbin） | 固定 `/usr/bin` |
 | F9 | supervisor 用 host key 当隧道身份 | 改 `keys/tunnel.key`（E2E 抓出） |
 | F10 | ssh 连接选项放在 `user@host` 之后被吞成远程命令 | `ProbeAnchorSSH` 把选项+目标置于远程命令之前（回归测试 `TestBuildProbeArgsOrder`） |
-| F11 | 节点每次 install 重生成 host key ⇒ controller 报 REMOTE HOST IDENTIFICATION HAS CHANGED | dialhome 锚点用控制器私有 known_hosts + `StrictHostKeyChecking=accept-new` |
+| F11 | 节点每次 install 重生成 host key ⇒ controller 报 REMOTE HOST IDENTIFICATION HAS CHANGED | OutboundAll 锚点用控制器私有 known_hosts + `StrictHostKeyChecking=accept-new` |
 | F12 | no-op `migrate-legacy` 仍重写 AK（每次多一个空行） | 仅真实改写时写盘（回归测试 `TestMigrateLegacyIdempotentKeepsAKByteForByte`） |
 | F13 | **P1 安全**：撤销后未消费凭证可复活节点 | revoke 清凭证+AK 行；helper 双重 guard（revoked / 凭证 ID 非当前）；真实 SSH 负向测试 |
 | F14 | forced command 路径带空格被 shell 拆词 | 分离 `ShellQuote` + `AKOptionValue` 两层转义 |
@@ -96,7 +96,7 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 
 **Controller**：
 - `machines.json` 两类锚点：`ssh-alias`（沿用用户 `~/.ssh/config`，**从不迁移**）与
-  dialhome 锚点（ProxyJump + manager key；同机 `127.0.0.1` 自动跳过 jump 直连回环）。
+  OutboundAll 锚点（ProxyJump + manager key；同机 `127.0.0.1` 自动跳过 jump 直连回环）。
 - 有序 failover，**每次探测都留 trail 并带真实失败原因**。
 - `controller exec` bash 走 stdin 脚本模式（避免引号嵌套），`shell` 走 `-t` PTY。
 - 校园链路实测：`controller anchors school` → `1. [ssh-alias] school-guest -> OK (ssh ok)`。
@@ -112,7 +112,7 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 | 旧 `magpie-node-*` / `magpie-tunnel-node-*` 行（win2 + HP66） | 2 行全部导入 |
 | key body | **逐字节不变**（diff vs `authorized_keys.bak-20261115-024605` = KEYS-IDENTICAL） |
 | 端口 | win2 `13435/13437`、HP66 `13440/13441` 原槽位 |
-| forced command | 只改命令本体 → `dialhome relay-helper --port <P> tunnel` |
+| forced command | 只改命令本体 → `OutboundAll relay-helper --port <P> tunnel` |
 | 旧私钥 ↔ 新 helper | win2 旧 key 经新 Go helper 回答 `{"ok":true,"node":"port-13435","ssh":13437,...}` |
 | 生产隧道 | 迁移过程零中断 |
 | 幂等恢复 | 一次误删 registry 后，重跑 migrate 把 2 节点恢复为 active（AK 字节不变） |
@@ -127,13 +127,13 @@ b614367 P7 CLI 完成 → (P10 文档/CI 本轮)
 
 完整脚本在 102 上执行，输出（节选）：
 ```
-== 1) relay init ==                    relay init ok: /home/user/.dialhome
+== 1) relay init ==                    relay init ok: /home/user/.OutboundAll
 == 2) controller init ==              MANAGER-KEY/PUB 生成
 == 3) manager.pub staged ==           ssh-ed25519 AAAAC3...
 == 4) issue credential ==             credential ports: 13441 13440
 == 5) node install ==                 ENROLL = tunnel pubkey bound to e2e-node
                                       CONFIG / KEYS / TUNNEL-PUB / AUTOSTART(XDG)
-                                      AK dialhome-node-e2e-node lines: 1
+                                      AK OutboundAll-node-e2e-node lines: 1
 == 6) node run ==                     sshd.log: Server listening on 127.0.0.1 port 19022.
 == 7) relay 回环监听 ==               LISTEN 127.0.0.1:13441
 == 7b) 节点 AK 含 manager pub ==      mgr-in-node-ak = 1
@@ -185,7 +185,7 @@ Windows 用户级注册表写入在**受限沙箱**里被拒（`Access is denied
 |---|---|
 | `README.md`（重写为 Go 版） | 所有人：五分钟上手 + 不变式 + 平台状态 |
 | `docs/README.md` | 文档导航（按读者角色分组、标 legacy 存档） |
-| `docs/man-dialhome.md`（重写） | 命令参考（SYNOPSIS/COMMANDS/FILES/EXIT CODES/EXAMPLES） |
+| `docs/man-OutboundAll.md`（重写） | 命令参考（SYNOPSIS/COMMANDS/FILES/EXIT CODES/EXAMPLES） |
 | `docs/NODE_MANUAL.md` | 部署受控节点 |
 | `docs/CONTROLLER_MANUAL.md` | 管理/连接节点 |
 | `docs/RELAY_MANUAL.md` | 运维 relay |
@@ -200,7 +200,7 @@ SSH_BACKEND_MATRIX / PHASE4_ACCEPTANCE / RUNBOOK(legacy) / FAST-PATH(legacy)`。
   （ubuntu + windows 双矩阵）+ 全平台构建产物 + Linux smoke。
 - `scripts/build-matrix.sh`：windows/linux/darwin × amd64/arm64 六个目标，
   `-trimpath -ldflags "-X main.version=... -X main.commit=..."`，输出 `dist/SHA256SUMS`。
-- `dialhome version` 支持 ldflags 注入；退出码 `errs.ExitCode`（0/1/2/3/10+）。
+- `OutboundAll version` 支持 ldflags 注入；退出码 `errs.ExitCode`（0/1/2/3/10+）。
 
 ---
 

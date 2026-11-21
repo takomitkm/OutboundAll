@@ -12,7 +12,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/takomitkm/dialhome/hs/internal/authz"
+	"github.com/takomitkm/outboundall/hs/internal/authz"
 	"net/http"
 	"strings"
 	"sync"
@@ -33,7 +33,7 @@ type Options struct {
 	Headscale HeadscaleAPI
 	// policy reload hook (nil = policy management disabled)
 	ReloadPolicy PolicyReloader
-	// headscale user that owns the dialhome tags (tagOwners)
+	// headscale user that owns the OutboundAll tags (tagOwners)
 	PolicyOwner string
 	// redeem attempts per window per IP
 	RateLimit  int

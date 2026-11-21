@@ -1,5 +1,5 @@
 // Command hs-deploycheck is a read-only availability probe for a deployed
-// dialhome-hs VPS: verifies headscale health, controller API health, and
+// OutboundAll-hs VPS: verifies headscale health, controller API health, and
 // (given a tailscale socket) that this machine's tailnet identity is alive.
 //
 // Deliberately tiny: the 2c/1G deployment target must not run anything heavy.

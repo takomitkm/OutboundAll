@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh -- reproducible single-VPS deployment for dialhome-hs (Debian 13).
+# deploy.sh -- reproducible single-VPS deployment for OutboundAll-hs (Debian 13).
 #
 # Target: 139.9.101.203 (2c/1G) -- keep it light. Components (ADR-007):
 #   headscale 0.29.7 (upstream, pinned)      -- control plane, loopback + SSH tunnels
@@ -19,13 +19,13 @@ VER="${1:?usage: deploy.sh <version-tag>}"
 VPS_IP="${VPS_IP:-139.9.101.203}"
 INSTALL=/usr/local/bin
 UNIT=/etc/systemd/system
-DERPDIR=/var/lib/dialhome-derp
-DERPMAP=/etc/headscale/derp-dialhome.json
+DERPDIR=/var/lib/OutboundAll-derp
+DERPMAP=/etc/headscale/derp-OutboundAll.json
 
 echo "== 1) binaries (upload the server package contents to $INSTALL) =="
 for b in hs-controller hs-deploycheck derper; do
   if [ ! -f "$INSTALL/$b" ]; then
-    echo "missing $INSTALL/$b -- upload it first (dialhome-server package)"
+    echo "missing $INSTALL/$b -- upload it first (OutboundAll-server package)"
     exit 1
   fi
   chmod 755 "$INSTALL/$b"
@@ -41,9 +41,9 @@ fi
 "$INSTALL/headscale" version
 
 echo "== 3) headscale config (authoritative rewrite; backup kept) =="
-useradd -r -s /usr/sbin/nologin dialhome 2>/dev/null || true
+useradd -r -s /usr/sbin/nologin OutboundAll 2>/dev/null || true
 mkdir -p /etc/headscale /var/lib/headscale "$DERPDIR"
-chown -R dialhome:dialhome /var/lib/headscale "$DERPDIR"
+chown -R OutboundAll:OutboundAll /var/lib/headscale "$DERPDIR"
 if [ -f /etc/headscale/config.yaml ]; then
   cp /etc/headscale/config.yaml "/etc/headscale/config.yaml.bak-$VER"
 fi
@@ -86,10 +86,10 @@ database:
     write_ahead_log: true
 policy:
   mode: file
-  path: /var/lib/dialhome-hs/policy.json
+  path: /var/lib/OutboundAll-hs/policy.json
 dns:
   magic_dns: true
-  base_domain: tailnet.dialhome.internal
+  base_domain: tailnet.OutboundAll.internal
   override_local_dns: true
   nameservers:
     global:
@@ -99,14 +99,14 @@ log:
   level: info
   format: text
 EOF
-# policy lives in the CONTROLLER's data dir: the controller (dialhome
+# policy lives in the CONTROLLER's data dir: the controller (OutboundAll
 # user) atomically writes it per authz change (tmp+rename needs directory
 # write permission -- /etc/headscale is root-owned, real-machine failure)
-mkdir -p /var/lib/dialhome-hs
-if [ ! -f /var/lib/dialhome-hs/policy.json ]; then
-  echo '{"grants": [], "ssh": []}' > /var/lib/dialhome-hs/policy.json
+mkdir -p /var/lib/OutboundAll-hs
+if [ ! -f /var/lib/OutboundAll-hs/policy.json ]; then
+  echo '{"grants": [], "ssh": []}' > /var/lib/OutboundAll-hs/policy.json
 fi
-chown dialhome:dialhome /var/lib/dialhome-hs/policy.json
+chown OutboundAll:OutboundAll /var/lib/OutboundAll-hs/policy.json
 
 echo "== 4) systemd units =="
 cat > $UNIT/headscale.service <<'EOF'
@@ -116,11 +116,11 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=dialhome
-Group=dialhome
+User=OutboundAll
+Group=OutboundAll
 ExecStart=/usr/local/bin/headscale serve --config /etc/headscale/config.yaml
 ExecStartPre=+/bin/mkdir -p /var/lib/headscale /var/run/headscale
-ExecStartPre=+/bin/chown -R dialhome:dialhome /var/lib/headscale /var/run/headscale
+ExecStartPre=+/bin/chown -R OutboundAll:OutboundAll /var/lib/headscale /var/run/headscale
 RuntimeDirectory=headscale
 RuntimeDirectoryMode=0755
 Restart=on-failure
@@ -132,11 +132,11 @@ ReadWritePaths=/var/lib/headscale /run/headscale
 [Install]
 WantedBy=multi-user.target
 EOF
-mkdir -p /var/lib/dialhome-hs
-chown -R dialhome:dialhome /var/lib/dialhome-hs
+mkdir -p /var/lib/OutboundAll-hs
+chown -R OutboundAll:OutboundAll /var/lib/OutboundAll-hs
 cat > $UNIT/hs-controller.service <<EOF
 [Unit]
-Description=dialhome hs-controller management plane
+Description=OutboundAll hs-controller management plane
 After=headscale.service
 Wants=headscale.service
 
@@ -144,10 +144,10 @@ Wants=headscale.service
 ExecStart=$INSTALL/hs-controller serve --listen 127.0.0.1:8800 \
   --headscale-bin $INSTALL/headscale --headscale-config /etc/headscale/config.yaml \
   --headscale-user ci --server http://127.0.0.1:18080 \
-  --policy-file /var/lib/dialhome-hs/policy.json
-User=dialhome
-Environment=HOME=/var/lib/dialhome-hs
-ExecStartPre=/bin/mkdir -p /var/lib/dialhome-hs
+  --policy-file /var/lib/OutboundAll-hs/policy.json
+User=OutboundAll
+Environment=HOME=/var/lib/OutboundAll-hs
+ExecStartPre=/bin/mkdir -p /var/lib/OutboundAll-hs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -155,15 +155,15 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
-cat > $UNIT/dialhome-derp.service <<EOF
+cat > $UNIT/OutboundAll-derp.service <<EOF
 [Unit]
-Description=dialhome DERP relay (upstream derper, ADR-007)
+Description=OutboundAll DERP relay (upstream derper, ADR-007)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=dialhome
-Group=dialhome
+User=OutboundAll
+Group=OutboundAll
 # non-root bind on :443
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
@@ -172,7 +172,7 @@ ExecStart=$INSTALL/derper -hostname=$VPS_IP -certmode=manual -certdir=$DERPDIR \
   -a=:443 -http-port=-1 -home=blank \
   -accept-connection-limit=10 -accept-connection-burst=20
 ExecStartPre=+/bin/mkdir -p $DERPDIR
-ExecStartPre=+/bin/chown -R dialhome:dialhome $DERPDIR
+ExecStartPre=+/bin/chown -R OutboundAll:OutboundAll $DERPDIR
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -185,12 +185,12 @@ EOF
 
 echo "== 5) derper first start (creates self-signed IP cert on demand) =="
 systemctl daemon-reload
-systemctl enable dialhome-derp
-systemctl restart dialhome-derp
+systemctl enable OutboundAll-derp
+systemctl restart OutboundAll-derp
 sleep 3
 CERT=$DERPDIR/$VPS_IP.crt
 if [ ! -f "$CERT" ]; then
-  echo "derper did not create $CERT -- check: journalctl -u dialhome-derp -n 20"
+  echo "derper did not create $CERT -- check: journalctl -u OutboundAll-derp -n 20"
   exit 1
 fi
 
@@ -202,8 +202,8 @@ cat > $DERPMAP <<EOF
 regions:
   900:
     regionid: 900
-    regioncode: dialhome
-    regionname: dialhome-vps
+    regioncode: OutboundAll
+    regionname: OutboundAll-vps
     nodes:
       - name: 900a
         regionid: 900
@@ -223,9 +223,9 @@ sleep 3
 # idempotent: the controller resolves this user at startup
 $INSTALL/headscale --config /etc/headscale/config.yaml users create ci 2>/dev/null || true
 # init the store AS THE SERVICE USER (H6-class: init as root writes /root,
-# serve as dialhome reads /var/lib/dialhome-hs -- split state)
-if [ ! -f /var/lib/dialhome-hs/.dialhome-hs/registry.json ]; then
-  runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init 2>/dev/null ||     runuser -u dialhome -- env HOME=/var/lib/dialhome-hs $INSTALL/hs-controller init
+# serve as OutboundAll reads /var/lib/OutboundAll-hs -- split state)
+if [ ! -f /var/lib/OutboundAll-hs/.OutboundAll-hs/registry.json ]; then
+  runuser -u OutboundAll -- env HOME=/var/lib/OutboundAll-hs $INSTALL/hs-controller init 2>/dev/null ||     runuser -u OutboundAll -- env HOME=/var/lib/OutboundAll-hs $INSTALL/hs-controller init
   systemctl restart hs-controller
 fi
 systemctl enable hs-controller

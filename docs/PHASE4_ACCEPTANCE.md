@@ -13,9 +13,9 @@
 | `internal/relay/akfile.go` | 结构化 AK 解析（带 options 前缀行）、upsert/remove 仅动目标行、外部行逐字节保留、原子写+备份 | 解析/无损渲染/边界断言 |
 | `internal/relay/helper.go` | 强制命令：`check`/`register`/`get openssh`/`enroll`（凭证一次性、预绑定槽位、payload 消毒） | happy/幂等/三类拒绝 |
 | CLI | `relay init/enroll/list/inspect/ports/credentials/revoke` + `relay-helper`（旗标前置+位置动词） | 冒烟 + 生产实测 |
-| `dialhome keygen` | 节点本地生成 ed25519（**私钥不出机**——对旧实现的密钥安全升级） | keygen 输出被系统 ssh-keygen 接受 |
+| `OutboundAll keygen` | 节点本地生成 ed25519（**私钥不出机**——对旧实现的密钥安全升级） | keygen 输出被系统 ssh-keygen 接受 |
 
-## 2. 真实 SSH 验收读数（`~/.dialhome-matrix-go/evidence.log` 原文摘要）
+## 2. 真实 SSH 验收读数（`~/.OutboundAll-matrix-go/evidence.log` 原文摘要）
 
 | 测试 | 命令 | 实测结果 | 判定 |
 |---|---|---|---|
@@ -42,8 +42,8 @@
 | F1 | authorized_keys **不支持 Include**（设计稿写了 Include 方案） | helper 直接维护系统 AK；PROTOCOL §3 公开更正 |
 | F2 | 凭证行渲染无 credential id → helper 查无凭证 | `--credential <id>` 烘焙进 forced command |
 | F3 | `flag.Parse` 在首个位置参数处停止 → 位置动词必须放旗标后 | 行模板改为 `relay-helper --port P tunnel` / `--credential C enroll` |
-| F4 | relay 数据目录误用 `%APPDATA%`（Windows 语义） | relay 角色 = `~/.dialhome`（三平台统一，贴近 ssh 生态） |
-| F5 | root 部署二进制导致 `~/.dialhome` 属主错误 | 部署规程：`chown -R user:user`；记入部署文档 |
+| F4 | relay 数据目录误用 `%APPDATA%`（Windows 语义） | relay 角色 = `~/.OutboundAll`（三平台统一，贴近 ssh 生态） |
+| F5 | root 部署二进制导致 `~/.OutboundAll` 属主错误 | 部署规程：`chown -R user:user`；记入部署文档 |
 
 ## 4. 新坑位（补入 PITFALLS.md 的素材）
 
@@ -55,7 +55,7 @@
 ## 5. 遗留与下一步
 
 - `relay reconcile/verify` 待 Phase 6/9（需要 Node 通道在线）
-- `dialhome relay-helper tunnel` 的 `get openssh` 二进制透传已实现，分发路径在 Phase 5 接入
+- `OutboundAll relay-helper tunnel` 的 `get openssh` 二进制透传已实现，分发路径在 Phase 5 接入
 - 端口分配器的 `ss -ltn` 依赖在 Windows 开发机上不可用 → `livePorts()` 返回 nil（降级为 registry-only）；
   生产 relay 是 Linux，不受影响；Phase 9 端到端再验证
 - 清理完成：gomatrix 残留 AK 行/registry 已清；102 上实验文件已删

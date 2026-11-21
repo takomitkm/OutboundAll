@@ -59,7 +59,7 @@ func TestPinnedURLMatchesReleaseTag(t *testing.T) {
 // passed "" unconditionally, so `get openssh` could never run.
 func TestFetchFallsBackToHelper(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "pkg.zip")
-	err := fetchFrom("http://127.0.0.1:1/nothing", dest, "dialhome-no-such-ssh-binary")
+	err := fetchFrom("http://127.0.0.1:1/nothing", dest, "OutboundAll-no-such-ssh-binary")
 	if err == nil {
 		t.Fatal("both channels failing must return an error")
 	}

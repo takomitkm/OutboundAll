@@ -21,8 +21,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/takomitkm/dialhome/hs/internal/admincli"
-	"github.com/takomitkm/dialhome/internal/errs"
+	"github.com/takomitkm/outboundall/hs/internal/admincli"
+	"github.com/takomitkm/outboundall/internal/errs"
 )
 
 var version = "dev"
@@ -72,7 +72,7 @@ func usage() {
   hs-admin doctor [--api URL] [--socket S]
   hs-admin version
 
-token: --token T | DIALHOME_HS_ADMIN_TOKEN | ~/.dialhome-hs/admin-token
+token: --token T | OUTBOUNDALL_HS_ADMIN_TOKEN | ~/.OutboundAll-hs/admin-token
 `)
 }
 
@@ -81,7 +81,7 @@ func apiURL(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if v := os.Getenv("DIALHOME_HS_API"); v != "" {
+	if v := os.Getenv("OUTBOUNDALL_HS_API"); v != "" {
 		return v
 	}
 	return "http://127.0.0.1:8800"
@@ -91,7 +91,7 @@ func apiURL(flagVal string) string {
 func clientFor(api, tokenFlag string) *admincli.Client {
 	tok := admincli.TokenFromSources(tokenFlag)
 	if tok == "" {
-		fmt.Fprintln(os.Stderr, "hs-admin: admin token not found -- pass --token, set DIALHOME_HS_ADMIN_TOKEN, or run `hs-controller init` on the VPS")
+		fmt.Fprintln(os.Stderr, "hs-admin: admin token not found -- pass --token, set OUTBOUNDALL_HS_ADMIN_TOKEN, or run `hs-controller init` on the VPS")
 		os.Exit(errs.ExitUsage)
 	}
 	return admincli.New(api, tok)
@@ -184,7 +184,7 @@ func cmdInvite(args []string) int {
 
 func failInvite(err error) int {
 	if err == admincli.ErrUnauthorized {
-		fmt.Fprintln(os.Stderr, "hs-admin: admin token missing or rejected (pass --token or set DIALHOME_HS_ADMIN_TOKEN)")
+		fmt.Fprintln(os.Stderr, "hs-admin: admin token missing or rejected (pass --token or set OUTBOUNDALL_HS_ADMIN_TOKEN)")
 	} else {
 		fmt.Fprintf(os.Stderr, "hs-admin: %v\n", err)
 	}

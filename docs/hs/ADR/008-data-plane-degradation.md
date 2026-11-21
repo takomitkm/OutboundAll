@@ -7,7 +7,7 @@
 校机在校园网，受控端只允许出站。跨网实测（2026-11-21/22）得到三条硬事实：
 
 1. **直连（UDP 打洞）在"受控端跑 sing-box"前提下不可行**：`tailscale status --json` 里
-   peer 的 `Endpoints` 恒为空、`CurAddr` 为空，`tailscale ping` 恒 `via DERP(dialhome)` +
+   peer 的 `Endpoints` 恒为空、`CurAddr` 为空，`tailscale ping` 恒 `via DERP(OutboundAll)` +
    `direct connection not established`。sing-box 的 tailscale endpoint 不上报 UDP 端点，
    对端没有候选地址可打；本机侧 STUN 再多也只是自己学到了映射（ADR-007 Verification #7）。
 2. **两端都在 NAT 后**，任何"隧道"都必须落到一台有公网入口的机器（本架构里就是 139）。

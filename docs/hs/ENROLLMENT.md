@@ -1,4 +1,4 @@
-# ENROLLMENT — dialhome-hs 登记指南（密码less，一次性）
+# ENROLLMENT — OutboundAll-hs 登记指南（密码less，一次性）
 
 > 流程语义继承参考实现（凭证一次性、短期、崩溃安全）；载体换为邀请码 + preauth key。
 
@@ -32,8 +32,8 @@
 管理机不装 sing-box、不跑 hs-node——controller tailnet 身份直接由官方客户端持有：
 
 ```bash
-# 1. 运维发一枚 tag 为 dialhome-controller 的 key：
-hs-admin invite create --label local-admin   # 或在 VPS 上用 headscale preauthkeys create --tags tag:dialhome-controller
+# 1. 运维发一枚 tag 为 OutboundAll-controller 的 key：
+hs-admin invite create --label local-admin   # 或在 VPS 上用 headscale preauthkeys create --tags tag:OutboundAll-controller
 # 2. 管理机装官方 tailscale 客户端，登记到自托管控制面（控制面经 SSH 隧道可达）：
 tailscale up --login-server http://127.0.0.1:18080 --authkey <KEY> --accept-dns=false
 # 3. hs-admin 开箱即用（default socket 即官方客户端；Windows=命名管道）：
@@ -52,10 +52,10 @@ hs-admin shell <node>
    `tailscale ssh` 在自定义命名管道上直接报 `The specified path is invalid`（1.104.7
    Windows 平台缺陷，`ssh` 子命令拼 ProxyCommand 时把管道路径转义坏）；AF_UNIX 文件套接字
    Windows 不支持（`namedpipe.Listen` 只认管道）。**结论：Windows 管理机就用 MSI 服务模式。**
-3. **hs-admin 必须放在本地固定盘**（如 `%LOCALAPPDATA%\Dialhome-admin\`）。实测从 `S:`
+3. **hs-admin 必须放在本地固定盘**（如 `%LOCALAPPDATA%\OutboundAll-admin\`）。实测从 `S:`
    盘执行同一份二进制时，其派生的 `tailscale` 子进程打服务管道报 `Access is denied`
    （受限令牌），同一命令从 `C:` 执行 rc=0。
-4. **控制面隧道做成登录任务**（`DialhomeControlTunnel`）：`ssh -N -L 18080:...:18080
+4. **控制面隧道做成登录任务**（`OutboundAllControlTunnel`）：`ssh -N -L 18080:...:18080
    -L 18800:...:8800 root@139`，断线 1 分钟自愈。Tailscale 服务本身是 Automatic。
 
 ## 4. 崩溃安全

@@ -63,7 +63,7 @@ jobs:
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dialhome-dist
+          name: OutboundAll-dist
           path: dist/
           retention-days: 14
 
@@ -78,22 +78,22 @@ jobs:
           go-version: '1.27'
           cache: true
       - name: build
-        run: go build -o /tmp/dialhome ./cmd/dialhome
+        run: go build -o /tmp/OutboundAll ./cmd/OutboundAll
       - name: doctor (read-only, no node installed)
-        run: /tmp/dialhome doctor
+        run: /tmp/OutboundAll doctor
       - name: version + usage exit codes
         run: |
-          /tmp/dialhome version
+          /tmp/OutboundAll version
           set +e
-          /tmp/dialhome migrate >/dev/null 2>&1; echo "usage exit=$?"
-          /tmp/dialhome nosuchcmd >/dev/null 2>&1; echo "unknown exit=$?"
-          test "$(/tmp/dialhome migrate >/dev/null 2>&1; echo $?)" = "2"
-          test "$(/tmp/dialhome nosuchcmd >/dev/null 2>&1; echo $?)" = "2"
+          /tmp/OutboundAll migrate >/dev/null 2>&1; echo "usage exit=$?"
+          /tmp/OutboundAll nosuchcmd >/dev/null 2>&1; echo "unknown exit=$?"
+          test "$(/tmp/OutboundAll migrate >/dev/null 2>&1; echo $?)" = "2"
+          test "$(/tmp/OutboundAll nosuchcmd >/dev/null 2>&1; echo $?)" = "2"
       - name: node install (temporary, fake credential rejected cleanly)
         run: |
           set +e
           echo '{}' > /tmp/cred.json
-          /tmp/dialhome node install --mode temporary --credential /tmp/cred.json
+          /tmp/OutboundAll node install --mode temporary --credential /tmp/cred.json
           rc=$?
           echo "install-with-bad-cred exit=$rc"
           # must fail (not panic) with a nonzero exit; $? was consumed by the echo above,

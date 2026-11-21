@@ -43,7 +43,7 @@ func Current() PinnedPackage {
 // MirrorEnv names an env var that overrides the download URL (a local mirror for
 // hosts that cannot reach github.com). The pinned SHA-256 still applies, so a
 // mirror cannot smuggle in a different build.
-const MirrorEnv = "DIALHOME_OPENSSH_URL"
+const MirrorEnv = "OUTBOUNDALL_OPENSSH_URL"
 
 // sourceURL is the URL Fetch uses: the mirror override when set, else the pin.
 func sourceURL() string {

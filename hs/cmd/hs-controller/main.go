@@ -27,20 +27,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/hs/internal/controller"
-	"github.com/takomitkm/dialhome/internal/errs"
+	"github.com/takomitkm/outboundall/hs/internal/controller"
+	"github.com/takomitkm/outboundall/internal/errs"
 )
 
 var version = "dev"
 
-// dataDir is fixed like the reference relay's ~/.dialhome (H6: env-dependent
+// dataDir is fixed like the reference relay's ~/.OutboundAll (H6: env-dependent
 // data dirs split the registry).
 func dataDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fatal("resolve home: %v", err)
 	}
-	return home + string(os.PathSeparator) + ".dialhome-hs"
+	return home + string(os.PathSeparator) + ".OutboundAll-hs"
 }
 
 func main() {
@@ -181,7 +181,7 @@ func apiURL(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if v := os.Getenv("DIALHOME_HS_API"); v != "" {
+	if v := os.Getenv("OUTBOUNDALL_HS_API"); v != "" {
 		return v
 	}
 	return "http://127.0.0.1:8800"

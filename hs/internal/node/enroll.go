@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/takomitkm/dialhome/internal/platform"
+	"github.com/takomitkm/outboundall/internal/platform"
 )
 
 // SecretFileName holds the node resume secret inside the config dir.
@@ -132,7 +132,7 @@ func Enroll(controllerURL, code, hostname string) (string, error) {
 	}
 	// server comes from hs-controller; it must be https in production (the
 	// TestAllowHTTP invariant lives in Config, enforced on Load)
-	if !strings.HasPrefix(server, "https://") && os.Getenv("DIALHOME_HS_TEST_ALLOW_HTTP") != "1" {
+	if !strings.HasPrefix(server, "https://") && os.Getenv("OUTBOUNDALL_HS_TEST_ALLOW_HTTP") != "1" {
 		return "", fmt.Errorf("controller handed out a non-https control plane URL %q", server)
 	}
 	cfg := &Config{
@@ -144,9 +144,9 @@ func Enroll(controllerURL, code, hostname string) (string, error) {
 		Forwarding:    DefaultForwarding,
 		StateDir:      l.StateDir,
 	}
-	// CI-only hatch (documented, like DIALHOME_RELAY_DIR): the e2e chain runs
+	// CI-only hatch (documented, like OUTBOUNDALL_RELAY_DIR): the e2e chain runs
 	// against a plaintext localhost headscale; production enroll never sees it.
-	if os.Getenv("DIALHOME_HS_TEST_ALLOW_HTTP") == "1" && strings.HasPrefix(server, "http://") {
+	if os.Getenv("OUTBOUNDALL_HS_TEST_ALLOW_HTTP") == "1" && strings.HasPrefix(server, "http://") {
 		cfg.TestAllowHTTP = true
 	}
 	if err := cfg.Save(l.CfgDir); err != nil {

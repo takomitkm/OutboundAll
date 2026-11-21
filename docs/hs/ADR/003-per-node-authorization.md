@@ -11,7 +11,7 @@ Headscale 的 ACL/grants/SSH policy 是授权载体。参考实现的"permitlist
 ## Decision
 
 1. **Headscale policy 全局 deny-by-default**。不依赖"省略 ACL 段 = 全通"的隐式默认——policy 文件显式写拒绝基线。
-2. 逐节点身份标识 = tag 体系（注册时由 hs-controller 按 profile 下发：默认 `tag:dialhome-node`+`tag:dialhome-node-ssh`，no-ssh profile 仅前者）；controller 身份 = `tag:dialhome-controller`（**必须真持 tag**——见 4a）。
+2. 逐节点身份标识 = tag 体系（注册时由 hs-controller 按 profile 下发：默认 `tag:OutboundAll-node`+`tag:OutboundAll-node-ssh`，no-ssh profile 仅前者）；controller 身份 = `tag:OutboundAll-controller`（**必须真持 tag**——见 4a）。
 2a. **CI 对照实验钉死的 headscale v0.29.7 语义**（run 74488ae 及前身）：
    - peer 邻接（数据面可见性）= grant src/dst 对**节点实际持有的身份**（IP/tag）做匹配；grants 的 src 是 tag 而节点未持该 tag ⇒ 节点不进对方 netmap（`Peer: null`），SSH 规则写得再对也无用——**SSH 需要双闸：grants 承载数据面 tcp:22，ssh 段只管会话授权**；
    - grants 的 ProtocolPort 语法是**冒号** `tcp:22`（斜杠 `tcp/22` 是 Tailscale-ACL dst 语法，解析报 "invalid first integer"）；
@@ -32,4 +32,4 @@ Headscale 的 ACL/grants/SSH policy 是授权载体。参考实现的"permitlist
 - 逐节点隔离可测：N8'/N9' 证明"未授权节点连不了"与"只有 controller 连得了"。
 - G3 证据（run 128b5f4）：**node expire 不终止已建立的 SSH 会话**——会话在 expire 后 45 秒仍然存活。撤销语义如实记录为：新连接被拒（N6'），既有会话不立即终止（与参考实现「删 AK 行后 sshd 兜底」行为一致）。逐会话终止 = 明确的文档化偏差。
 - G4p 证据（run 128b5f4）：**SSH ACL 生效**——官方 tailscale 客户端经 Headscale SSH ACL 成功登入 sing-box ssh_server，会话以 sing-box 进程用户运行（`whoami` = 启动用户，Windows CLI 拒绝其他本地账户的语义成立）。
-- G4 证据（run 74488ae，最终形态）：deny-by-default 服务端强制成立——node-b（no-ssh profile，仅 tag:dialhome-node）对 ctrl 不可达（nc 被 ACL 黑洞，exit 1）；node-c（default profile，含 tag:dialhome-node-ssh）可被 ctrl 到达 tcp:22（tagged grant 生效）；策略文件始终保有 tag-scoped 形状（node-b 永不出现在 grant dst）。deny 基线 = grants 空数组（无 ssh 节点时）/ tag-scoped 单条（有 ssh 节点时），"省略段 = allow-all" 的隐式默认从未被依赖。
+- G4 证据（run 74488ae，最终形态）：deny-by-default 服务端强制成立——node-b（no-ssh profile，仅 tag:OutboundAll-node）对 ctrl 不可达（nc 被 ACL 黑洞，exit 1）；node-c（default profile，含 tag:OutboundAll-node-ssh）可被 ctrl 到达 tcp:22（tagged grant 生效）；策略文件始终保有 tag-scoped 形状（node-b 永不出现在 grant dst）。deny 基线 = grants 空数组（无 ssh 节点时）/ tag-scoped 单条（有 ssh 节点时），"省略段 = allow-all" 的隐式默认从未被依赖。

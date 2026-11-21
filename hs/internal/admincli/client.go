@@ -33,11 +33,11 @@ func TokenFromSources(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	if v := os.Getenv("DIALHOME_HS_ADMIN_TOKEN"); v != "" {
+	if v := os.Getenv("OUTBOUNDALL_HS_ADMIN_TOKEN"); v != "" {
 		return strings.TrimSpace(v)
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		if b, err := os.ReadFile(home + "/.dialhome-hs/admin-token"); err == nil {
+		if b, err := os.ReadFile(home + "/.OutboundAll-hs/admin-token"); err == nil {
 			return strings.TrimSpace(string(b))
 		}
 	}

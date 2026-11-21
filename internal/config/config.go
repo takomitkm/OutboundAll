@@ -1,4 +1,4 @@
-// Package config loads, validates and saves dialhome JSON configuration.
+// Package config loads, validates and saves OutboundAll JSON configuration.
 // Invariants enforced here (docs/CONFIG_SCHEMA.md):
 //   - channel local/remote must start with "127.0.0.1:" (loopback-only, literal)
 //   - at least one channel named "ssh"; channel names unique
@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/takomitkm/dialhome/internal/platform"
+	"github.com/takomitkm/outboundall/internal/platform"
 )
 
 const Version = 1

@@ -1,5 +1,5 @@
 [Unit]
-Description=dialhome machine reconcile (compare hardware identity through each node's channel)
+Description=OutboundAll machine reconcile (compare hardware identity through each node's channel)
 After=network.target
 
 [Service]

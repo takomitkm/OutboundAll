@@ -73,14 +73,14 @@ func VerifySHA256(data []byte, want string) error {
 
 // Ensure downloads (if missing) and verifies the pinned sing-box archive into
 // binDir, then extracts the sing-box binary next to it. Returns the binary path.
-// Test escape hatch: DIALHOME_HS_SINGBOX points at an already-provisioned
-// binary (CI reuses the e2e-deps download; documented like DIALHOME_RELAY_DIR).
+// Test escape hatch: OUTBOUNDALL_HS_SINGBOX points at an already-provisioned
+// binary (CI reuses the e2e-deps download; documented like OUTBOUNDALL_RELAY_DIR).
 func Ensure(binDir string, offlineArchive string) (string, error) {
-	if v := os.Getenv("DIALHOME_HS_SINGBOX"); v != "" {
+	if v := os.Getenv("OUTBOUNDALL_HS_SINGBOX"); v != "" {
 		if _, err := os.Stat(v); err == nil {
 			return v, nil
 		}
-		return "", fmt.Errorf("DIALHOME_HS_SINGBOX set but missing: %s", v)
+		return "", fmt.Errorf("OUTBOUNDALL_HS_SINGBOX set but missing: %s", v)
 	}
 	p, ok := pinFor(runtime.GOOS, runtime.GOARCH)
 	if !ok {

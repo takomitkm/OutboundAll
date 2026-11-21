@@ -1,5 +1,5 @@
 [Unit]
-Description=dialhome bootstrap server (one public port that onboards new nodes)
+Description=OutboundAll bootstrap server (one public port that onboards new nodes)
 After=network.target
 
 [Service]

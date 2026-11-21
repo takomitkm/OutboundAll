@@ -1,4 +1,4 @@
-# CONFIG_SCHEMA — dialhome 配置模式（Phase 2 冻结稿 v1）
+# CONFIG_SCHEMA — OutboundAll 配置模式（Phase 2 冻结稿 v1）
 
 全部 JSON、UTF-8、无 BOM；`config_version` 整数递增，`internal/config` 负责迁移。
 
@@ -12,7 +12,7 @@
     "relay": { "address": "10.101.54.192", "port": 18322, "user": "user" },
     "sshd": {
       "listen": "127.0.0.1:19022",
-      "openssh_dir": "%LOCALAPPDATA%/dialhome/openssh",
+      "openssh_dir": "%LOCALAPPDATA%/OutboundAll/openssh",
       "host_key": "keys/host_ed25519",
       "authorized_keys": "keys/authorized_keys",
       "log": "logs/sshd.log",
@@ -66,7 +66,7 @@
       "anchors": [
         { "alias": "school-guest",      "kind": "ssh_alias",  "local_port": null },
         { "alias": "school-guest-pc2",  "kind": "ssh_alias",  "local_port": 13401 },
-        { "kind": "dialhome",           "node": "school",     "via_relay": "10.101.54.192:18322", "local_port": null }
+        { "kind": "OutboundAll",           "node": "school",     "via_relay": "10.101.54.192:18322", "local_port": null }
       ]
     }
   },
@@ -75,7 +75,7 @@
 ```
 
 `kind=ssh_alias` → 直接用 `~/.ssh/config` 别名（不迁移用户 SSH 配置）；
-`kind=dialhome` → dialhome 自己的经 relay 路径。failover 按 anchors 顺序。
+`kind=OutboundAll` → OutboundAll 自己的经 relay 路径。failover 按 anchors 顺序。
 
 ## 4. Relay — `<relay>/registry.json`
 
@@ -83,7 +83,7 @@
 {
   "config_version": 1,
   "port_pool": { "base": 13440, "top": 13600 },
-  "helper_path": "/home/user/.dialhome/bin/dialhome",
+  "helper_path": "/home/user/.OutboundAll/bin/OutboundAll",
   "nodes": {
     "hp66": {
       "state": "active",
@@ -122,8 +122,8 @@
 |---|---|
 | relay `machines.json`（fp/uuid/macs/user/…） | relay `registry.json[nodes].hardware` |
 | relay `bootstrap-names.json` | 仅作 IP→fp 桥接提示，不迁移 |
-| relay authorized_keys 双标记行 | 解析后并入 `registry.json` + 重写为 `~/.dialhome/authorized_keys`（原文件备份不动） |
+| relay authorized_keys 双标记行 | 解析后并入 `registry.json` + 重写为 `~/.OutboundAll/authorized_keys`（原文件备份不动） |
 | node `D:\zc\sshd\{host key, node_key, sshd_config}` | `keys/`（host key 原样保留——**变更会触发 relay known_hosts 告警**，迁移器显式处理）、node_key → `keys/tunnel.key` |
-| node Startup lnk + HKCU Run | 卸载旧入口 → 注册 `dialhomed node run` 新入口 |
+| node Startup lnk + HKCU Run | 卸载旧入口 → 注册 `OutboundAlld node run` 新入口 |
 | node tunnel-*.err | 不迁移（日志非身份） |
 | controller dial.py MACHINES | `machines.json`（ssh_alias anchors 原样引用） |
