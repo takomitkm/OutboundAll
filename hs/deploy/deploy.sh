@@ -49,9 +49,11 @@ if [ -f /etc/headscale/config.yaml ]; then
 fi
 cat > /etc/headscale/config.yaml <<EOF
 server_url: http://127.0.0.1:18080
-# loopback only: the control plane reaches clients exclusively through their
-# SSH tunnels (-L 18080:127.0.0.1:8080); it must not be internet-reachable
-listen_addr: 127.0.0.1:8080
+# headscale listens on the SAME port it advertises: the old split (advertise
+# 18080, listen 8080) needed an nc bridge that accepted only ONE connection at
+# a time -- tailscale registration opens several, so clients fell back to TLS
+# on 18080 and failed. One port, no bridge (ADR-007 consequence).
+listen_addr: 127.0.0.1:18080
 metrics_listen_addr: 127.0.0.1:9090
 noise:
   private_key_path: /var/lib/headscale/noise_private.key

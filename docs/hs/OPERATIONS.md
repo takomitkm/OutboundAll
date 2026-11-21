@@ -50,9 +50,17 @@ ssh root@139.9.101.203 'tar czf /root/dialhome-hs-backup-$(date +%F).tgz \
 | 443/tcp | derper（数据面中继；自签 IP 证书 + 客户端指纹 pin，ADR-007 D4） |
 | 3478/udp | STUN（可选；未开放前 DERP map 里 STUNPort=-1） |
 
-控制面 8080 与管理面 8800 **只绑 127.0.0.1**，不经公网暴露：节点/管理机的控制连接
-全部走各自的 SSH 隧道（`-L 18080:127.0.0.1:8080`，server_url 保持隧道口径）。
+控制面 18080 与管理面 8800 **只绑 127.0.0.1**，不经公网暴露：节点/管理机的控制连接
+全部走各自的 SSH 隧道（`-L 18080:127.0.0.1:18080`，server_url 与监听同端口，无中间桥）。
 数据面（tailnet 流量）走 443 的 derper，WireGuard 端到端加密不变。
+
+> 单端口教训（2026-11-21 真机）：旧配置 advertise 18080 / listen 8080，中间用
+> `nc -l -p 18080 -c "nc 127.0.0.1 8080"` 桥接。该桥**一次只能接一个连接**，
+> tailscale 注册要并发多次请求 → 客户端失败后回退成"同端口 https"→ 注册永久卡死。
+> 现在 headscale 直接监听 18080，桥已废。管理机上的官方 tailscale 客户端因此能正常注册。
+
+管理机要求：装 **官方 tailscale 客户端**（ADR-007 D2），`hs-admin` 的 default socket
+即官方客户端；受控节点不装（用包内 hs-node + sing-box）。
 
 ## 6. DERP 证书轮换（ADR-007 D4，替代旧 Caddy TLS 升级路径）
 

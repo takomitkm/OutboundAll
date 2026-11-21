@@ -122,3 +122,20 @@ admin（hs-admin，win zip + linux tar.gz）+ SHA256SUMS；原始二进制保留
 
 待办：安全组 443 开放 → 139 重部署（derper 上线）→ 139 本机 selftest 验 pin 全链 →
 两端重注册 → 端到端 tailscale-ssh。
+
+## Phase 13b — 数据面打通（2026-11-21，真机证据）
+
+SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
+1. 外网 TLSv1.3 + 证书指纹逐字匹配 pin（sha256-raw:8d6220c3…）
+2. 校机 sing-box ↔ 139:443 连续 Established
+3. 本机 SOCKS5 → 100.64.0.2:22 → SSH-2.0-sing-box banner
+4. 官方客户端（139, vps-admin 100.64.0.7）netcheck = dialhome-vps 3ms，
+   tailscale ssh YiZhidi@win11-hv1 在 Windows 校机执行成功
+
+真机修出的两个新坑：
+- 控制面单端口化：advertise 18080 / listen 8080 + nc 桥（单连接）→ 客户端注册
+  回退同端口 https 永久卡死；改 headscale 直接 listen 18080，桥废除
+  （deploy.sh + OPERATIONS §5 已改，校机/本机隧道 mapping 同步）
+- 校机启动脚本残留 TS_DEBUG_USE_DERP_HTTP=1 → 明文打 TLS derper；已删并重启
+
+清理：139 上自测遗留 tailscaled（tselftest）已删；宿主机 vps-admin 保留为管理身份。

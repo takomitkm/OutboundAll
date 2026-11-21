@@ -89,3 +89,20 @@ DERP** 成立（embedded DERP 的证书跟随 server_url，无法在 DERP map �
 - 1 年一次证书轮换：derper 删证书重生成或 deploy.sh 重跑，指纹自动刷新进 map。
 - 实机自检可在安全组开放前完成：139 本机起 tailscaled userspace 自测节点，
   走 https://139.9.101.203:443 验证 pin 全链（loopback 到公网 IP 不经安全组）。
+
+## Verification（2026-11-21 真机，SG 443 开放后）
+
+1. **外网 TLS + pin**：本机裸 socket 到 139.9.101.203:443，TLSv1.3 握手成功，
+   peer cert sha256 = `8d6220c3…0735`，与 DERP map 的 `CertName: sha256-raw:` 逐字一致。
+2. **受控节点上中继**：校机 sing-box 到 139:443 的连接连续采样均为 `Established`。
+3. **tailnet 数据面**：本机 sing-box SOCKS5 → `100.64.0.2:22` CONNECT 成功，
+   收到 `SSH-2.0-sing-box` banner（sing-box ssh_server）。
+4. **官方客户端全链**：139 上官方 tailscale 1.104.7（vps-admin，100.64.0.7）
+   `netcheck` 显示 `Nearest DERP: dialhome-vps (3ms)`；
+   `tailscale ssh YiZhidi@win11-hv1` 在 Windows 校机上执行成功。
+5. **控制面单端口化**：headscale 直接监听 18080 后，管理机注册一次成功；
+   旧 nc 单连接桥导致"注册回退 https 卡死"（OPERATIONS §5 教训）。
+6. **执行环境注记**：校机 ssh_server 远端 shell 是 PowerShell 7.7，
+   `hostname`/`whoami` 裸名解析不到（PATH 有 system32 但解析失败），
+   `hs-admin exec` 请用 cmdlet 或全路径（如 `$env:COMPUTERNAME`、
+   `[System.Net.Dns]::GetHostName()`）。
