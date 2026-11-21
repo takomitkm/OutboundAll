@@ -166,3 +166,11 @@ SG 443 开放后全链验证（详见 docs/hs/ADR/007 Verification 节）：
 - 顺带修掉两个真机 bug：deploy.sh 的 18080 "遗留 nc 清理"在单端口化后会**误杀
   headscale 本体**（已加进程名判定，只杀 nc）；`hs-deploycheck` 默认探活端口
   8080 → 18080（源码+调用点都改了）。
+
+## Phase 13e — 降级阶梯成文（2026-11-22）
+
+ADR-008 定五级：A 直连（实测不可行）→ B DERP 中继（当前默认）→ C DERP-over-SSH
+（保 tailnet，纯配置）→ D 纯 SSH（便携 OpenSSH，免管理员，丢 tailnet 语义）→ E 全封。
+关键更正：**便携 OpenSSH 不需要管理员**（v1 `internal/openssh/windows.go`，commit 941e157
+下载 OpenSSH-Win64.zip 用户态跑 sshd.exe）。C/D 均不改变"流量过 139"，这是 NAT 拓扑决定。
+现状数据面只有 B，无 SSH 兜底。
