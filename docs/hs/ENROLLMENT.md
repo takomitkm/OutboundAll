@@ -33,7 +33,7 @@
 
 ```bash
 # 1. 运维发一枚 tag 为 OutboundAll-controller 的 key：
-hs-admin invite create --label local-admin   # 或在 VPS 上用 headscale preauthkeys create --tags tag:OutboundAll-controller
+hs-admin invite create --label local-admin   # 或在 VPS 上用 headscale preauthkeys create --tags tag:outboundall-controller
 # 2. 管理机装官方 tailscale 客户端，登记到自托管控制面（控制面经 SSH 隧道可达）：
 tailscale up --login-server http://127.0.0.1:18080 --authkey <KEY> --accept-dns=false
 # 3. hs-admin 开箱即用（default socket 即官方客户端；Windows=命名管道）：

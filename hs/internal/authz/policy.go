@@ -5,7 +5,7 @@
 //   - deny-by-default: the rendered policy's grants section is EMPTY unless a
 //     node's profile explicitly allows something (headscale treats omitted
 //     grants as allow-all -- the explicit empty array is the deny baseline)
-//   - SSH: only nodes tagged tag:OutboundAll-node-ssh (profile opt-in) are
+//   - SSH: only nodes tagged tag:outboundall-node-ssh (profile opt-in) are
 //     reachable by the controller tag; everything else has no covering rule
 //   - node-to-node: no rule, no reachability
 package authz
@@ -19,9 +19,9 @@ import (
 
 // Tags used by the OutboundAll stack (ADR-003).
 const (
-	TagController = "tag:OutboundAll-controller"
-	TagNode       = "tag:OutboundAll-node"
-	TagNodeSSH    = "tag:OutboundAll-node-ssh"
+	TagController = "tag:outboundall-controller"
+	TagNode       = "tag:outboundall-node"
+	TagNodeSSH    = "tag:outboundall-node-ssh"
 )
 
 // NodeView is what the renderer needs per node (from the controller store).
