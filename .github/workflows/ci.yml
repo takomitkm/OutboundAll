@@ -94,7 +94,8 @@ jobs:
           set +e
           echo '{}' > /tmp/cred.json
           /tmp/OutboundAll node install --mode temporary --credential /tmp/cred.json
-          echo "install-with-bad-cred exit=$?"
+          code=$?
+          echo "install-with-bad-cred exit=$code"
           # must fail (not panic) with a nonzero exit
-          test "$?" != "0"
+          test "$code" != "0"
 
