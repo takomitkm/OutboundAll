@@ -14,9 +14,10 @@
 #   sshtunnel-selfheal status     is the detached one alive?
 #
 # --- configuration (edit for your topology) ---
-KEY=/path/to/RELAY_KEY                # private key the relay uses to connect out
-TARGET=RELAY_USER@RELAY_HOST          # relay user@host
-PORT=13390                            # loopback port opened ON the relay
+# This script runs ON THE HOST (the NAT'd machine). It connects OUT to the relay.
+KEY=/path/to/RELAY_KEY                # private key the HOST uses to authenticate to the relay
+TARGET=RELAY_USER@RELAY_HOST          # relay user@host (what the host connects to)
+PORT=13390                            # loopback port opened ON the relay (the dial-back entry)
 PIDFILE=$HOME/.cache/sshtunnel-selfheal.pid
 LOGFILE=$HOME/.cache/sshtunnel-selfheal.log
 # ------------------------------------------------
